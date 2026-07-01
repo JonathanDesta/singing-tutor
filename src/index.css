@@ -172,3 +172,177 @@ canvas.trace {
   color: #8b93a7;
   font-size: 15px;
 }
+
+.app {
+  overflow-y: auto;
+}
+
+.topbar {
+  align-items: flex-end;
+}
+
+.muted {
+  color: #8b93a7;
+}
+
+button.secondary {
+  background: #171a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 8px;
+  color: #b8bfcf;
+  font-size: 14px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+button.secondary:hover {
+  background: #1f2430;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #12141a;
+  border: 1px solid #2a2f3d;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #b8bfcf;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #12141a;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.card p {
+  margin: 0;
+  color: #8b93a7;
+  font-size: 13px;
+  flex: 1;
+}
+
+.card .meta,
+.runner-head .meta {
+  color: #8b93a7;
+  font-size: 12px;
+}
+
+.card button {
+  align-self: flex-start;
+}
+
+.runner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.runner-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.runner-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+canvas.stage {
+  min-height: 300px;
+}
+
+.runner-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.status {
+  color: #8b93a7;
+  font-size: 15px;
+}
+
+.status.sing {
+  color: #4ade80;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bigscore {
+  font-size: 46px;
+  font-weight: 800;
+  color: #4ade80;
+  line-height: 1;
+}
+
+.stbl {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.stbl th {
+  text-align: left;
+  color: #8b93a7;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.stbl td,
+.stbl th {
+  padding: 6px 18px 6px 0;
+  border-bottom: 1px solid #1c2029;
+}
+
+.row-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.rangebox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.rangebox h2 {
+  margin: 0;
+}
+
+.live-note {
+  font-size: 44px;
+  font-weight: 800;
+}
+
+.progress h2 {
+  font-size: 16px;
+  margin: 10px 0 4px;
+}

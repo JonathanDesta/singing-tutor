@@ -5,10 +5,12 @@ feedback now, structured exercises and an AI coach next.
 
 ## Roadmap
 
-- **Phase 1 (this)** — real-time pitch engine: mic capture, pitch detection
+- **Phase 1 (done)** — real-time pitch engine: mic capture, pitch detection
   (pitchy / McLeod pitch method), live trace against a target note.
-- **Phase 2** — exercise library (sustained notes, sirens, scales, intervals),
-  scoring, vocal range detection, on-device progress history.
+- **Phase 2 (this)** — call-and-response exercises (sustained note, five-note
+  scale, intervals, arpeggio, siren) with per-note scoring, vocal range
+  detection that transposes exercises to fit the singer, and on-device
+  progress history (IndexedDB).
 - **Phase 3** — AI coach: post-session metrics sent to the Claude API via a
   serverless function; personalized feedback and lesson plans.
 - **Phase 4** — advanced analysis: vibrato, breathiness (HNR), onset quality,
