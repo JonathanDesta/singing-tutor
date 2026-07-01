@@ -78,6 +78,12 @@ export const saveProfile = async (p: Profile) => {
 export const getKV = <T>(key: string) =>
   run<T | undefined>("kv", "readonly", (s) => s.get(key));
 
+/** Wipes everything local: sessions, profile, goal, program, feedback. */
+export const clearAllData = async () => {
+  await run<undefined>("sessions", "readwrite", (s) => s.clear());
+  await run<undefined>("kv", "readwrite", (s) => s.clear());
+};
+
 export const setKV = async (key: string, value: unknown) => {
   const k = await run<IDBValidKey>("kv", "readwrite", (s) => s.put(value, key));
   writeListener?.({ kind: "kv", key, value });

@@ -49,6 +49,25 @@ header {
   opacity: 0.7;
 }
 
+.danger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #1c2029;
+  font-size: 13px;
+}
+
+.danger-btn {
+  border-color: rgba(251, 113, 133, 0.5);
+  color: #fb7185;
+}
+
+.danger-btn:hover {
+  background: rgba(251, 113, 133, 0.1);
+}
+
 h1 {
   font-size: 22px;
   margin: 0;

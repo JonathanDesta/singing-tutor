@@ -1,11 +1,43 @@
 import { useEffect, useState } from "react";
-import { listSessions, type Profile, type SessionRec } from "../lib/db";
+import {
+  clearAllData,
+  listSessions,
+  type Profile,
+  type SessionRec,
+} from "../lib/db";
+import { clearCloudData, isSignedIn } from "../lib/sync";
 import { midiToName } from "../lib/notes";
 
 type Props = { profile: Profile | null };
 
 export function Progress({ profile }: Props) {
   const [sessions, setSessions] = useState<SessionRec[] | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  async function resetAll() {
+    const scope = isSignedIn()
+      ? "on this device AND in your synced cloud account"
+      : "on this device";
+    const ok = window.confirm(
+      `Delete ALL app data ${scope}?\n\nSessions, vocal range, goal, program, coaching history — everything. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setResetting(true);
+    try {
+      await clearCloudData();
+    } catch {
+      const proceed = window.confirm(
+        "Couldn't clear the cloud copy (offline or permission issue). " +
+          "Reset local data anyway? Note: it may re-sync back from the cloud on your next sign-in.",
+      );
+      if (!proceed) {
+        setResetting(false);
+        return;
+      }
+    }
+    await clearAllData();
+    window.location.reload();
+  }
 
   useEffect(() => {
     const load = () =>
@@ -88,6 +120,20 @@ export function Progress({ profile }: Props) {
           </table>
         </>
       )}
+
+      <div className="danger">
+        <button
+          className="secondary danger-btn"
+          disabled={resetting}
+          onClick={resetAll}
+        >
+          {resetting ? "Resetting…" : "Reset all data"}
+        </button>
+        <span className="muted">
+          Deletes sessions, range, goal, and program — from this device and
+          your synced account.
+        </span>
+      </div>
     </div>
   );
 }

@@ -151,6 +151,24 @@ export async function initSync(): Promise<void> {
   });
 }
 
+export function isSignedIn(): boolean {
+  return state.user !== null;
+}
+
+/** Deletes the signed-in user's entire cloud copy. No-op when signed out. */
+export async function clearCloudData(): Promise<void> {
+  if (!fb || !state.user) return;
+  const { db, fsMod } = fb;
+  const uid = state.user.uid;
+  const snap = await fsMod.getDocs(fsMod.collection(db, "users", uid, "sessions"));
+  for (let i = 0; i < snap.docs.length; i += 400) {
+    const batch = fsMod.writeBatch(db);
+    for (const d of snap.docs.slice(i, i + 400)) batch.delete(d.ref);
+    await batch.commit();
+  }
+  await fsMod.deleteDoc(fsMod.doc(db, "users", uid));
+}
+
 export async function signIn(): Promise<void> {
   if (!fb) return;
   await fb.authMod.signInWithPopup(fb.auth, new fb.authMod.GoogleAuthProvider());
