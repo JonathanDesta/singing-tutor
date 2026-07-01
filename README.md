@@ -11,11 +11,24 @@ feedback now, structured exercises and an AI coach next.
   scale, intervals, arpeggio, siren) with per-note scoring, vocal range
   detection that transposes exercises to fit the singer, and on-device
   progress history (IndexedDB).
-- **Phase 3** — AI coach: post-session metrics sent to the Claude API via a
-  serverless function; personalized feedback and lesson plans.
+- **Phase 3 (this)** — goal-driven AI coach: state a goal, get an honest
+  feasibility verdict (realistic / stretch / unrealistic) and a tailored
+  week-by-week program; post-session coaching referencing measured cents
+  data. Claude Opus 4.8 via `api/coach.ts` (Vercel function); rule-based
+  offline coach as fallback. Requires `ANTHROPIC_API_KEY` env var on Vercel.
 - **Phase 4** — advanced analysis: vibrato, breathiness (HNR), onset quality,
   vowel/formant tracking.
 - **Phase 5** — song mode, PWA install, optional public launch.
+
+## Deployment
+
+Two targets from the same repo:
+
+- **GitHub Pages** (static only, no AI coach): auto-deploys on push via
+  Actions to https://jonathandesta.github.io/singing-tutor/
+- **Vercel** (full app + AI coach): import the repo at vercel.com/new, set
+  `ANTHROPIC_API_KEY` in project environment variables. Vite base path
+  switches automatically (`VERCEL` env var).
 
 ## Development
 
