@@ -35,17 +35,22 @@ export function Coach({ profile }: Props) {
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    getKV<Goal>("goal").then((g) => {
-      if (g) {
-        setGoal(g);
-        setGoalText(g.text);
-      }
-    });
-    getKV<CoachProgram>("program").then((p) => p && setProgram(p));
-    getKV<CoachFeedback>("last-feedback").then((f) => f && setFeedback(f));
-    listSessions()
-      .then(setSessions)
-      .catch(() => setSessions([]));
+    const load = () => {
+      getKV<Goal>("goal").then((g) => {
+        if (g) {
+          setGoal(g);
+          setGoalText((cur) => (cur === "" ? g.text : cur));
+        }
+      });
+      getKV<CoachProgram>("program").then((p) => p && setProgram(p));
+      getKV<CoachFeedback>("last-feedback").then((f) => f && setFeedback(f));
+      listSessions()
+        .then(setSessions)
+        .catch(() => setSessions([]));
+    };
+    load();
+    window.addEventListener("data-synced", load);
+    return () => window.removeEventListener("data-synced", load);
   }, []);
 
   async function buildProgram() {

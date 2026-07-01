@@ -8,9 +8,13 @@ export function Progress({ profile }: Props) {
   const [sessions, setSessions] = useState<SessionRec[] | null>(null);
 
   useEffect(() => {
-    listSessions()
-      .then((s) => setSessions(s.reverse()))
-      .catch(() => setSessions([]));
+    const load = () =>
+      listSessions()
+        .then((s) => setSessions(s.reverse()))
+        .catch(() => setSessions([]));
+    load();
+    window.addEventListener("data-synced", load);
+    return () => window.removeEventListener("data-synced", load);
   }, []);
 
   const bests = new Map<string, number>();

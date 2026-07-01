@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AudioEngine, type SourceKind } from "./audio/engine";
 import { getProfile, saveProfile, type Profile } from "./lib/db";
+import {
+  initSync,
+  signIn,
+  signOutUser,
+  subscribeSync,
+  type SyncState,
+} from "./lib/sync";
 import { midiToFreq, midiToName } from "./lib/notes";
 import { FreeSing } from "./components/FreeSing";
 import { Practice } from "./components/Practice";
@@ -17,11 +24,24 @@ export default function App() {
   const [source, setSource] = useState<SourceKind>("mic");
   const [toneMidi, setToneMidi] = useState(57); // A3, matches default exercise root
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [sync, setSync] = useState<SyncState>({
+    status: "disabled",
+    user: null,
+  });
 
   useEffect(() => {
-    getProfile()
-      .then((p) => setProfile(p ?? null))
-      .catch(() => setProfile(null));
+    const loadProfile = () =>
+      getProfile()
+        .then((p) => setProfile(p ?? null))
+        .catch(() => setProfile(null));
+    loadProfile();
+    initSync();
+    const unsub = subscribeSync(setSync);
+    window.addEventListener("data-synced", loadProfile);
+    return () => {
+      unsub();
+      window.removeEventListener("data-synced", loadProfile);
+    };
   }, []);
 
   // retune the shared test oscillator live (no-op when mic or stopped)
@@ -46,6 +66,29 @@ export default function App() {
       <header>
         <h1>Singing Tutor</h1>
         <span className="phase">Phase 3 · AI coach</span>
+        <div className="account">
+          {sync.status === "disabled" ? (
+            <span className="muted sync-off" title="Firebase not configured yet">
+              sync off
+            </span>
+          ) : sync.user ? (
+            <>
+              <span className="muted">
+                {sync.user.email}
+                {sync.status === "syncing" && " · syncing…"}
+                {sync.status === "synced" && " · synced ✓"}
+                {sync.status === "error" && " · sync error"}
+              </span>
+              <button className="secondary" onClick={() => signOutUser()}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <button className="secondary" onClick={() => signIn()}>
+              Sign in to sync
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="controls topbar">

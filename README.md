@@ -20,6 +20,24 @@ feedback now, structured exercises and an AI coach next.
   vowel/formant tracking.
 - **Phase 5** — song mode, PWA install, optional public launch.
 
+## Cloud sync (Firebase)
+
+Data is offline-first in IndexedDB; signing in with Google mirrors it to
+Firestore so it survives device switches and browser-storage eviction.
+Sessions are unioned across devices; settings prefer the active device.
+
+One-time setup:
+
+1. console.firebase.google.com → Add project (disable Analytics, not needed)
+2. Build → Authentication → Get started → Sign-in method → enable **Google**
+3. Build → Firestore Database → Create (production mode) → Rules tab →
+   paste the contents of `firestore.rules` → Publish
+4. Project settings → Your apps → Add web app → copy the `firebaseConfig`
+   values into `src/lib/firebase-config.ts` (they are public identifiers,
+   safe to commit)
+5. Authentication → Settings → Authorized domains → add the Vercel domain
+   and `jonathandesta.github.io`
+
 ## Deployment
 
 Two targets from the same repo:

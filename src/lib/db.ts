@@ -11,6 +11,20 @@ export type Profile = { rangeMin: number; rangeMax: number };
 
 const DB_NAME = "singing-tutor";
 
+/**
+ * Write notifications let the sync layer mirror local writes to the cloud
+ * without this module knowing anything about Firebase.
+ */
+export type WriteEvent =
+  | { kind: "session"; value: SessionRec }
+  | { kind: "kv"; key: string; value: unknown };
+
+let writeListener: ((e: WriteEvent) => void) | null = null;
+
+export function setWriteListener(l: ((e: WriteEvent) => void) | null): void {
+  writeListener = l;
+}
+
 function open(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -43,8 +57,11 @@ async function run<T>(
   });
 }
 
-export const addSession = (rec: SessionRec) =>
-  run<IDBValidKey>("sessions", "readwrite", (s) => s.add(rec));
+export const addSession = async (rec: SessionRec) => {
+  const key = await run<IDBValidKey>("sessions", "readwrite", (s) => s.add(rec));
+  writeListener?.({ kind: "session", value: rec });
+  return key;
+};
 
 export const listSessions = () =>
   run<SessionRec[]>("sessions", "readonly", (s) => s.getAll());
@@ -52,11 +69,17 @@ export const listSessions = () =>
 export const getProfile = () =>
   run<Profile | undefined>("kv", "readonly", (s) => s.get("profile"));
 
-export const saveProfile = (p: Profile) =>
-  run<IDBValidKey>("kv", "readwrite", (s) => s.put(p, "profile"));
+export const saveProfile = async (p: Profile) => {
+  const key = await run<IDBValidKey>("kv", "readwrite", (s) => s.put(p, "profile"));
+  writeListener?.({ kind: "kv", key: "profile", value: p });
+  return key;
+};
 
 export const getKV = <T>(key: string) =>
   run<T | undefined>("kv", "readonly", (s) => s.get(key));
 
-export const setKV = (key: string, value: unknown) =>
-  run<IDBValidKey>("kv", "readwrite", (s) => s.put(value, key));
+export const setKV = async (key: string, value: unknown) => {
+  const k = await run<IDBValidKey>("kv", "readwrite", (s) => s.put(value, key));
+  writeListener?.({ kind: "kv", key, value });
+  return k;
+};
