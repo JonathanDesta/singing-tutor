@@ -5,8 +5,9 @@ import { midiToFreq, midiToName } from "./lib/notes";
 import { FreeSing } from "./components/FreeSing";
 import { Practice } from "./components/Practice";
 import { Progress } from "./components/Progress";
+import { Coach } from "./components/Coach";
 
-type View = "practice" | "free" | "progress";
+type View = "practice" | "coach" | "free" | "progress";
 
 export default function App() {
   const engineRef = useRef<AudioEngine | null>(null);
@@ -44,7 +45,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Singing Tutor</h1>
-        <span className="phase">Phase 2 · practice &amp; scoring</span>
+        <span className="phase">Phase 3 · AI coach</span>
       </header>
 
       <div className="controls topbar">
@@ -54,6 +55,12 @@ export default function App() {
             onClick={() => setView("practice")}
           >
             Practice
+          </button>
+          <button
+            className={view === "coach" ? "on" : ""}
+            onClick={() => setView("coach")}
+          >
+            Coach
           </button>
           <button
             className={view === "free" ? "on" : ""}
@@ -112,6 +119,7 @@ export default function App() {
           onProfileSaved={handleProfileSaved}
         />
       )}
+      {view === "coach" && <Coach profile={profile} />}
       {view === "free" && (
         <FreeSing engineRef={engineRef} source={source} toneMidi={toneMidi} />
       )}

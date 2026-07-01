@@ -54,3 +54,9 @@ export const getProfile = () =>
 
 export const saveProfile = (p: Profile) =>
   run<IDBValidKey>("kv", "readwrite", (s) => s.put(p, "profile"));
+
+export const getKV = <T>(key: string) =>
+  run<T | undefined>("kv", "readonly", (s) => s.get(key));
+
+export const setKV = (key: string, value: unknown) =>
+  run<IDBValidKey>("kv", "readwrite", (s) => s.put(value, key));

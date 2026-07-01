@@ -346,3 +346,103 @@ canvas.stage {
   font-size: 16px;
   margin: 10px 0 4px;
 }
+
+.coach {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.goalbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goalbox label {
+  color: #8b93a7;
+  font-size: 13px;
+}
+
+.goalbox textarea {
+  background: #171a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 10px;
+  color: #e7e9ee;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px;
+  resize: vertical;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.programbox,
+.feedbackbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #12141a;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.programbox p,
+.feedbackbox p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.feedbackbox h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.feas {
+  align-self: flex-start;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 14px;
+}
+
+.feas-realistic {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.feas-stretch {
+  background: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+}
+
+.feas-unrealistic {
+  background: rgba(251, 113, 133, 0.15);
+  color: #fb7185;
+}
+
+.feas-notes {
+  border-left: 3px solid #2a2f3d;
+  padding-left: 12px;
+  color: #b8bfcf;
+}
+
+.weeks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.weeks ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #b8bfcf;
+  font-size: 13px;
+  line-height: 1.6;
+}
