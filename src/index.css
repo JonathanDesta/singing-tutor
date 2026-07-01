@@ -1,0 +1,174 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0b0d12;
+  color: #e7e9ee;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 18px 20px 24px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.phase {
+  color: #8b93a7;
+  font-size: 13px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field.grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.field label {
+  color: #8b93a7;
+  font-size: 12px;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid #2a2f3d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  background: transparent;
+  border: none;
+  color: #b8bfcf;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.segmented button.on {
+  background: #26304a;
+  color: #fff;
+}
+
+.segmented button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+select,
+input[type="range"] {
+  background: #171a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 8px;
+  color: #e7e9ee;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+input[type="range"] {
+  padding: 0;
+  height: 34px;
+  accent-color: #4ade80;
+}
+
+button.primary {
+  background: #4ade80;
+  border: none;
+  border-radius: 8px;
+  color: #06240f;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 9px 22px;
+  cursor: pointer;
+}
+
+button.primary:hover {
+  background: #6ce699;
+}
+
+.error {
+  background: rgba(251, 113, 133, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  border-radius: 8px;
+  color: #fda4af;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+canvas.trace {
+  width: 100%;
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+}
+
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-height: 44px;
+}
+
+.readout .note {
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.readout .detail {
+  color: #8b93a7;
+  font-size: 14px;
+}
+
+.readout .vs {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.readout .vs.good {
+  color: #4ade80;
+}
+
+.readout .vs.off {
+  color: #facc15;
+}
+
+.readout .idle {
+  color: #8b93a7;
+  font-size: 15px;
+}
