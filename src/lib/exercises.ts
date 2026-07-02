@@ -1,7 +1,7 @@
 import { midiToName } from "./notes";
 
 export type Segment =
-  | { kind: "note"; degree: number; ms: number }
+  | { kind: "note"; degree: number; ms: number; label?: string }
   | { kind: "glide"; from: number; to: number; ms: number }
   | { kind: "rest"; ms: number };
 
@@ -75,7 +75,13 @@ export function resolve(
   for (const s of ex.segments) {
     if (s.kind === "note") {
       const m = rootMidi + s.degree;
-      targets.push({ t0: t, t1: t + s.ms, midi0: m, midi1: m, label: midiToName(m) });
+      targets.push({
+        t0: t,
+        t1: t + s.ms,
+        midi0: m,
+        midi1: m,
+        label: s.label ?? midiToName(m),
+      });
       t += s.ms;
     } else if (s.kind === "glide") {
       targets.push({

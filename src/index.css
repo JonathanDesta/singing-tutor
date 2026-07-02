@@ -77,6 +77,25 @@ td.chips {
   max-width: 260px;
 }
 
+.songmode {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.songnav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lyric {
+  font-size: 20px;
+  font-style: italic;
+  color: #e7e9ee;
+}
+
 .chip {
   display: inline-block;
   background: #1c2029;

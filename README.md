@@ -22,7 +22,11 @@ feedback now, structured exercises and an AI coach next.
   (clean vs scooped/slid), and experimental LPC formant/vowel estimation.
   Results show analysis chips; everything is stored with sessions and fed
   to the AI coach. `npm run verify:analysis` runs the synthetic test suite.
-- **Phase 5** — song mode, PWA install, optional public launch.
+- **Phase 5 (this)** — song mode: public-domain melodies (Twinkle Twinkle,
+  Happy Birthday, Amazing Grace, Ode to Joy) practiced phrase by phrase
+  with per-syllable scoring and the full analysis pipeline, transposed to
+  the singer's range. Installable PWA: manifest, icons, service worker
+  (offline app shell via vite-plugin-pwa).
 
 ## Cloud sync (Firebase)
 

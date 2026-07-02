@@ -44,6 +44,7 @@ type Props = {
   source: SourceKind;
   toneMidi: number;
   onExit: () => void;
+  backLabel?: string;
 };
 
 export function ExerciseRunner({
@@ -53,6 +54,7 @@ export function ExerciseRunner({
   source,
   toneMidi,
   onExit,
+  backLabel = "← Exercises",
 }: Props) {
   const { targets, totalMs } = useMemo(
     () => resolve(exercise, rootMidi),
@@ -187,7 +189,7 @@ export function ExerciseRunner({
     <div className="runner">
       <div className="runner-head">
         <button className="secondary" onClick={onExit}>
-          ← Exercises
+          {backLabel}
         </button>
         <h2>{exercise.name}</h2>
         <span className="meta">starts at {midiToName(rootMidi)}</span>
