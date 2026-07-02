@@ -1,4 +1,5 @@
 import type { TimedTarget } from "./exercises";
+import type { SegmentAnalysis } from "./analysis";
 
 /** One detection frame, t in ms relative to the start of the sing phase. */
 export type Frame = { t: number; midi: number | null };
@@ -52,6 +53,44 @@ export function scoreSegments(
       avgCents: sumCents / voiced.length,
       voicedRatio,
     };
+  });
+}
+
+/**
+ * Healthy vibrato oscillates around the note center — penalizing its
+ * excursions punishes good technique. Where analysis found healthy vibrato,
+ * rescore the segment on where the vibrato is CENTERED instead of on the
+ * raw frame-by-frame error, keeping whichever score is higher.
+ */
+export function applyVibratoAllowance(
+  scores: SegmentScore[],
+  analyses: SegmentAnalysis[],
+  targets: TimedTarget[],
+  frames: Frame[],
+): SegmentScore[] {
+  return scores.map((s, i) => {
+    const vib = analyses[i]?.vibrato;
+    const tg = targets[i];
+    if (!vib || vib.label !== "healthy vibrato" || !tg) return s;
+    const voiced = frames.filter(
+      (f) =>
+        f.t >= tg.t0 + EDGE_TRIM_MS &&
+        f.t <= tg.t1 - EDGE_TRIM_MS &&
+        f.midi !== null,
+    );
+    if (voiced.length === 0) return s;
+    const centerMidi =
+      voiced.reduce((acc, f) => acc + f.midi!, 0) / voiced.length;
+    const centerCents = (centerMidi - tg.midi0) * 100;
+    const abs = Math.abs(centerCents);
+    const pitchScore =
+      abs <= PERFECT_CENTS
+        ? 1
+        : Math.max(0, 1 - (abs - PERFECT_CENTS) / (ZERO_CENTS - PERFECT_CENTS));
+    const centerScore = pitchScore * Math.min(1, s.voicedRatio / FULL_VOICING);
+    return centerScore > s.score
+      ? { ...s, score: centerScore, avgCents: centerCents }
+      : s;
   });
 }
 

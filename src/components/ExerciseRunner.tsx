@@ -11,9 +11,15 @@ import { TonePlayer, sleep } from "../audio/player";
 import { usePitchLoop } from "../audio/usePitchLoop";
 import { resolve, type Exercise } from "../lib/exercises";
 import {
+  analyzeSegments,
+  describeAnalysis,
+  type AFrame,
+  type SegmentAnalysis,
+} from "../lib/analysis";
+import {
+  applyVibratoAllowance,
   scoreSegments,
   overallScore,
-  type Frame,
   type SegmentScore,
 } from "../lib/scoring";
 import { addSession } from "../lib/db";
@@ -62,16 +68,23 @@ export function ExerciseRunner({
     setPhase(p);
   };
 
-  const framesRef = useRef<Frame[]>([]);
+  const framesRef = useRef<AFrame[]>([]);
   const previewStartRef = useRef(0);
   const singStartRef = useRef(0);
   const runTokenRef = useRef(0);
   const savedRef = useRef(false);
   const [segScores, setSegScores] = useState<SegmentScore[] | null>(null);
+  const [analyses, setAnalyses] = useState<SegmentAnalysis[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   usePitchLoop(engineRef, phase === "sing", (f) => {
-    framesRef.current.push({ t: f.now - singStartRef.current, midi: f.midi });
+    framesRef.current.push({
+      t: f.now - singStartRef.current,
+      midi: f.midi,
+      clarity: f.clarity,
+      f1: f.f1,
+      f2: f.f2,
+    });
   });
 
   useEffect(
@@ -117,7 +130,12 @@ export function ExerciseRunner({
     if (token !== runTokenRef.current) return;
 
     await engineRef.current?.stop();
-    setSegScores(scoreSegments(targets, framesRef.current));
+    const scores = scoreSegments(targets, framesRef.current);
+    const segAnalyses = analyzeSegments(targets, framesRef.current);
+    setSegScores(
+      applyVibratoAllowance(scores, segAnalyses, targets, framesRef.current),
+    );
+    setAnalyses(segAnalyses);
     go("results");
   }
 
@@ -126,11 +144,12 @@ export function ExerciseRunner({
     playerRef.current?.stop();
     engineRef.current?.stop();
     setSegScores(null);
+    setAnalyses(null);
     go("ready");
   }
 
   useEffect(() => {
-    if (phase === "results" && segScores && !savedRef.current) {
+    if (phase === "results" && segScores && analyses && !savedRef.current) {
       savedRef.current = true;
       addSession({
         date: new Date().toISOString(),
@@ -138,16 +157,17 @@ export function ExerciseRunner({
         exerciseName: exercise.name,
         rootMidi,
         score: overallScore(segScores),
-        segments: segScores.map((s) => ({
+        segments: segScores.map((s, i) => ({
           label: s.label,
           score: s.score,
           avgCents: s.avgCents,
+          analysis: analyses?.[i] ?? null,
         })),
       }).catch(() => {
         // storage failure shouldn't break the results view
       });
     }
-  }, [phase, segScores, exercise, rootMidi]);
+  }, [phase, segScores, analyses, exercise, rootMidi]);
 
   const getProgressMs = useCallback(() => {
     const p = phaseRef.current;
@@ -211,6 +231,13 @@ export function ExerciseRunner({
                             : `${Math.abs(s.avgCents).toFixed(0)}¢ flat`}
                     </td>
                     <td>{Math.round(s.voicedRatio * 100)}% voiced</td>
+                    <td className="chips">
+                      {describeAnalysis(analyses?.[i]).map((chip, j) => (
+                        <span className="chip" key={j}>
+                          {chip}
+                        </span>
+                      ))}
+                    </td>
                   </tr>
                 ))}
               </tbody>

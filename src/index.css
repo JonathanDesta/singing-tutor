@@ -68,6 +68,27 @@ header {
   background: rgba(251, 113, 133, 0.1);
 }
 
+.chk {
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+td.chips {
+  max-width: 260px;
+}
+
+.chip {
+  display: inline-block;
+  background: #1c2029;
+  border: 1px solid #2a2f3d;
+  border-radius: 999px;
+  color: #b8bfcf;
+  font-size: 11px;
+  margin: 1px 4px 1px 0;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
 h1 {
   font-size: 22px;
   margin: 0;

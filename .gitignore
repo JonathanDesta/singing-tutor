@@ -1,4 +1,5 @@
 node_modules/
 dist/
+scripts/.bundle/
 *.local
 .DS_Store

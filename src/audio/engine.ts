@@ -33,6 +33,9 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
   private osc: OscillatorNode | null = null;
+  private lfo: OscillatorNode | null = null;
+  private lfoGain: GainNode | null = null;
+  private toneVibrato = false;
   private tap: AudioWorkletNode | null = null;
   private ring = new Float32Array(CAPTURE_SIZE);
   private scratch = new Float32Array(CAPTURE_SIZE);
@@ -53,6 +56,7 @@ export class AudioEngine {
   async start(kind: SourceKind, toneFreq = 261.63): Promise<void> {
     await this.stop();
     const ctx = new AudioContext();
+    this.ctx = ctx; // assign before source setup: attachLfo needs it
     const blobUrl = URL.createObjectURL(
       new Blob([WORKLET_SRC], { type: "application/javascript" }),
     );
@@ -84,13 +88,13 @@ export class AudioEngine {
       osc.start();
       this.osc = osc;
       sourceNode = osc;
+      if (this.toneVibrato) this.attachLfo();
     }
     sourceNode.connect(tap);
 
     this.ring.fill(0);
     this.received = 0;
     this.chunksSinceNotify = 0;
-    this.ctx = ctx;
     this.tap = tap;
     await ctx.resume();
   }
@@ -115,10 +119,44 @@ export class AudioEngine {
   setToneFreq(freq: number): void {
     if (this.osc && this.ctx) {
       this.osc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.02);
+      if (this.lfoGain) this.lfoGain.gain.value = freq * 0.03;
     }
   }
 
+  /** Adds/removes a 5.5 Hz ±~50¢ FM wobble on the test tone (dev aid). */
+  setToneVibrato(on: boolean): void {
+    this.toneVibrato = on;
+    if (on && this.osc && !this.lfo) this.attachLfo();
+    if (!on && this.lfo) this.detachLfo();
+  }
+
+  private attachLfo(): void {
+    if (!this.ctx || !this.osc) return;
+    const lfo = this.ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 5.5;
+    const gain = this.ctx.createGain();
+    gain.gain.value = this.osc.frequency.value * 0.03; // ~±50 cents
+    lfo.connect(gain).connect(this.osc.frequency);
+    lfo.start();
+    this.lfo = lfo;
+    this.lfoGain = gain;
+  }
+
+  private detachLfo(): void {
+    try {
+      this.lfo?.stop();
+      this.lfo?.disconnect();
+      this.lfoGain?.disconnect();
+    } catch {
+      // already stopped
+    }
+    this.lfo = null;
+    this.lfoGain = null;
+  }
+
   async stop(): Promise<void> {
+    this.detachLfo();
     this.osc?.stop();
     this.osc = null;
     this.mediaStream?.getTracks().forEach((t) => t.stop());

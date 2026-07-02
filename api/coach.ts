@@ -18,7 +18,14 @@ Principles, in priority order:
 
 4. TAILOR TO THE DATA. Reference the singer's actual numbers (range, per-exercise scores and trends, flat/sharp bias). A program for someone scoring 95 on scales looks different from one for someone scoring 60. If the data is thin, say what to measure first.
 
-The app's built-in scored exercises are: sustained note, five-note scale, intervals (do-mi-so), octave arpeggio, siren glides — all auto-transposed to the singer's range. Programs may also use standard unaccompanied drills (lip trills, humming, sirens on "ng", messa di voce). Assume 10-20 minutes of practice per day unless the goal demands otherwise.`;
+The app's built-in scored exercises are: sustained note, five-note scale, intervals (do-mi-so), octave arpeggio, siren glides — all auto-transposed to the singer's range. Programs may also use standard unaccompanied drills (lip trills, humming, sirens on "ng", messa di voce). Assume 10-20 minutes of practice per day unless the goal demands otherwise.
+
+Session segments may carry an "analysis" object with deeper measurements:
+- vibrato: {rateHz, extentCents, label} on sustained notes. "steady" = clean straight tone (fine); "healthy vibrato" = 4.3-7.5Hz; "slow wobble"/"fast tremolo"/"wide vibrato"/"unsteady pitch" indicate technique issues worth addressing.
+- tone: {hnrDb, label} — a harmonics-to-noise proxy. "clear" (≥18dB), "slightly breathy" (12-18dB), "breathy" (<12dB). Persistent breathiness suggests incomplete fold closure or excess airflow; note that mic quality and room noise push this down, so weight trends over absolutes.
+- onset: {ms, label} — attack quality per note. "clean" (locks within 140ms), "scooped" (approached from below), "slid down" (from above), "never settled". Habitual scooping is a common correctable fault.
+- vowel: {guess, f1, f2} — EXPERIMENTAL LPC formant estimate. Treat as a weak hint, never a firm diagnosis.
+Use these in feedback when present (older sessions lack them). Vocal-fold physiology caveats apply: you hear measurements, not the body producing them.`;
 
 const PROGRAM_SCHEMA = {
   type: "object",

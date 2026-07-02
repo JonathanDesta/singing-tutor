@@ -16,8 +16,12 @@ feedback now, structured exercises and an AI coach next.
   week-by-week program; post-session coaching referencing measured cents
   data. Claude Opus 4.8 via `api/coach.ts` (Vercel function); rule-based
   offline coach as fallback. Requires `ANTHROPIC_API_KEY` env var on Vercel.
-- **Phase 4** — advanced analysis: vibrato, breathiness (HNR), onset quality,
-  vowel/formant tracking.
+- **Phase 4 (this)** — advanced analysis on every exercise: vibrato
+  (rate/extent/character, with scoring that credits healthy centered
+  vibrato), tone clarity (HNR proxy from detection clarity), onset quality
+  (clean vs scooped/slid), and experimental LPC formant/vowel estimation.
+  Results show analysis chips; everything is stored with sessions and fed
+  to the AI coach. `npm run verify:analysis` runs the synthetic test suite.
 - **Phase 5** — song mode, PWA install, optional public launch.
 
 ## Cloud sync (Firebase)

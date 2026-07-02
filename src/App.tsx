@@ -23,6 +23,7 @@ export default function App() {
   const [view, setView] = useState<View>("practice");
   const [source, setSource] = useState<SourceKind>("mic");
   const [toneMidi, setToneMidi] = useState(57); // A3, matches default exercise root
+  const [toneVibrato, setToneVibrato] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sync, setSync] = useState<SyncState>({
     status: "disabled",
@@ -49,6 +50,10 @@ export default function App() {
     engineRef.current?.setToneFreq(midiToFreq(toneMidi));
   }, [toneMidi]);
 
+  useEffect(() => {
+    engineRef.current?.setToneVibrato(toneVibrato);
+  }, [toneVibrato]);
+
   // leaving a view always releases the mic/oscillator
   useEffect(() => {
     engineRef.current?.stop();
@@ -65,7 +70,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Singing Tutor</h1>
-        <span className="phase">Phase 3 · AI coach</span>
+        <span className="phase">Phase 4 · advanced analysis</span>
         <div className="account">
           {sync.status === "disabled" ? (
             <span className="muted sync-off" title="Firebase not configured yet">
@@ -141,6 +146,15 @@ export default function App() {
           <div className="field grow">
             <label>
               Tone: {midiToName(toneMidi)} ({midiToFreq(toneMidi).toFixed(1)} Hz)
+              {"  "}
+              <span className="chk">
+                <input
+                  type="checkbox"
+                  checked={toneVibrato}
+                  onChange={(e) => setToneVibrato(e.target.checked)}
+                />{" "}
+                vibrato
+              </span>
             </label>
             <input
               type="range"

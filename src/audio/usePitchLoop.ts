@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { PitchDetector } from "pitchy";
 import { freqToMidi } from "../lib/notes";
+import { estimateFormants } from "../lib/formants";
 import { CAPTURE_SIZE, type AudioEngine } from "./engine";
 
 const MIN_CLARITY = 0.9;
@@ -13,6 +14,8 @@ export type PitchFrame = {
   freq: number | null;
   midi: number | null;
   clarity: number;
+  f1: number | null; // first formant (voiced frames only)
+  f2: number | null; // second formant
 };
 
 /**
@@ -43,11 +46,19 @@ export function usePitchLoop(
       if (rms > MIN_RMS) {
         const [freq, clarity] = detector.findPitch(buf, sampleRate);
         if (clarity >= MIN_CLARITY && freq >= MIN_FREQ && freq <= MAX_FREQ) {
-          cbRef.current({ now, freq, midi: freqToMidi(freq), clarity });
+          const { f1, f2 } = estimateFormants(buf, sampleRate);
+          cbRef.current({ now, freq, midi: freqToMidi(freq), clarity, f1, f2 });
           return;
         }
       }
-      cbRef.current({ now, freq: null, midi: null, clarity: 0 });
+      cbRef.current({
+        now,
+        freq: null,
+        midi: null,
+        clarity: 0,
+        f1: null,
+        f2: null,
+      });
     });
   }, [active, engineRef]);
 }

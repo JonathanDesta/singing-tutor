@@ -33,6 +33,8 @@ export type SingerSummary = {
     trend: number; // recentAvg minus the mean of the 5 earliest attempts
   }[];
   pitchBias: string; // e.g. "tends flat (avg -18¢ on missed notes)"
+  tone: string; // aggregate clarity/breathiness from analyzed segments
+  vibrato: string; // aggregate vibrato picture from sustained notes
 };
 
 export function buildSingerSummary(
@@ -75,6 +77,26 @@ export function buildSingerSummary(
           ? `tends flat (avg ${bias.toFixed(0)}¢ on missed notes)`
           : `tends sharp (avg +${bias.toFixed(0)}¢ on missed notes)`;
 
+  const analyzed = sessions
+    .flatMap((s) => s.segments)
+    .map((seg) => seg.analysis)
+    .filter((a): a is NonNullable<typeof a> => a !== null && a !== undefined);
+  const tones = analyzed
+    .map((a) => a.tone?.hnrDb)
+    .filter((x): x is number => x !== undefined && x !== null);
+  const tone =
+    tones.length < 3
+      ? "not enough data yet"
+      : `avg tone clarity ${mean(tones).toFixed(1)} dB HNR across ${tones.length} analyzed segments`;
+  const vibs = analyzed
+    .map((a) => a.vibrato)
+    .filter((v): v is NonNullable<typeof v> => v !== null && v !== undefined);
+  const healthy = vibs.filter((v) => v.label === "healthy vibrato").length;
+  const vibrato =
+    vibs.length === 0
+      ? "no sustained notes analyzed yet"
+      : `${healthy}/${vibs.length} sustained notes show healthy vibrato; labels seen: ${[...new Set(vibs.map((v) => v.label))].join(", ")}`;
+
   return {
     range: profile
       ? `${midiToName(profile.rangeMin)}–${midiToName(profile.rangeMax)}`
@@ -82,6 +104,8 @@ export function buildSingerSummary(
     totalSessions: sessions.length,
     perExercise,
     pitchBias,
+    tone,
+    vibrato,
   };
 }
 

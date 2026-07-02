@@ -1,10 +1,17 @@
+import type { SegmentAnalysis } from "./analysis";
+
 export type SessionRec = {
   date: string; // ISO
   exerciseId: string;
   exerciseName: string;
   rootMidi: number;
   score: number; // 0..100
-  segments: { label: string; score: number; avgCents: number | null }[];
+  segments: {
+    label: string;
+    score: number;
+    avgCents: number | null;
+    analysis?: SegmentAnalysis | null; // added in phase 4; older records lack it
+  }[];
 };
 
 export type Profile = { rangeMin: number; rangeMax: number };
