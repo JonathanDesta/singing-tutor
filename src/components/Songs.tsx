@@ -40,6 +40,9 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     await setKV("customSongs", next);
   }
 
+  // BitMidi allows direct browser access (CORS *); its bot protection blocks
+  // requests from server/datacenter IPs, so direct-from-browser is the
+  // primary path and our Vercel proxy is only a fallback.
   async function searchSongs() {
     const q = query.trim();
     if (!q || searching) return;
@@ -47,13 +50,30 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     setImportError(null);
     setResults(null);
     try {
-      const r = await fetch(`/api/midi?q=${encodeURIComponent(q)}`);
-      if (!r.ok) throw new Error(String(r.status));
-      const data = await r.json();
-      setResults(data.results ?? []);
+      let results: { name: string; downloadUrl: string; views: number }[];
+      try {
+        const r = await fetch(
+          `https://bitmidi.com/api/midi/search?q=${encodeURIComponent(q)}&page=0`,
+        );
+        if (!r.ok) throw new Error(String(r.status));
+        const data = await r.json();
+        results = (data?.result?.results ?? [])
+          .filter((m: { name?: string; downloadUrl?: string }) => m.name && m.downloadUrl)
+          .slice(0, 12)
+          .map((m: { name: string; downloadUrl: string; views?: number }) => ({
+            name: m.name,
+            downloadUrl: m.downloadUrl,
+            views: m.views ?? 0,
+          }));
+      } catch {
+        const r = await fetch(`/api/midi?q=${encodeURIComponent(q)}`);
+        if (!r.ok) throw new Error(String(r.status));
+        results = (await r.json()).results ?? [];
+      }
+      setResults(results);
     } catch {
       setImportError(
-        "Online search needs the app's backend — use the Vercel URL while online, or import a .mid file directly.",
+        "Song search needs an internet connection — or import a .mid file directly.",
       );
     }
     setSearching(false);
@@ -64,7 +84,10 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     setImporting(m.downloadUrl);
     setImportError(null);
     try {
-      const r = await fetch(`/api/midi?file=${encodeURIComponent(m.downloadUrl)}`);
+      let r = await fetch(`https://bitmidi.com${m.downloadUrl}`).catch(() => null);
+      if (!r || !r.ok) {
+        r = await fetch(`/api/midi?file=${encodeURIComponent(m.downloadUrl)}`);
+      }
       if (!r.ok) throw new Error(String(r.status));
       const bytes = new Uint8Array(await r.arrayBuffer());
       const parsed = parseMidiFile(bytes);
