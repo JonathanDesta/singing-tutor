@@ -276,9 +276,12 @@ function timbreOf(f0, rolloff, capHz) {
 
   const parsed = parseMidiFile(file);
   check(
-    "MIDI parse: notes/bpm/name",
-    parsed.notes.length === 10 && parsed.bpm === 120 && parsed.name === "Test",
-    `notes=${parsed.notes.length} bpm=${parsed.bpm} name=${parsed.name}`,
+    "MIDI parse: voices/notes/bpm/name",
+    parsed.voices.length === 1 &&
+      parsed.voices[0].notes.length === 10 &&
+      parsed.bpm === 120 &&
+      parsed.name === "Test",
+    `voices=${parsed.voices.length} notes=${parsed.voices[0]?.notes.length} bpm=${parsed.bpm} name=${parsed.name}`,
   );
   const song = songFromMidi(parsed, "fallback");
   check(

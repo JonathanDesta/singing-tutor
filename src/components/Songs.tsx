@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { AudioEngine, SourceKind } from "../audio/engine";
 import { pickRoot, type Range } from "../lib/exercises";
 import { SONGS, songPhraseExercise, type Song } from "../lib/songs";
-import { parseMidiFile, songFromMidi } from "../lib/midi";
+import { parseMidiFile, songFromMidi, type ParsedMidi } from "../lib/midi";
 import { getKV, setKV, type Profile } from "../lib/db";
 import { requestSongStyle, type SongStyle } from "../lib/coach";
 import { ExerciseRunner } from "./ExerciseRunner";
@@ -28,6 +28,12 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
   const [styles, setStyles] = useState<Record<string, SongStyle>>({});
   const [styleBusy, setStyleBusy] = useState(false);
   const [styleError, setStyleError] = useState<string | null>(null);
+  const [lastImport, setLastImport] = useState<{
+    parsed: ParsedMidi;
+    title: string;
+    songId: string;
+    voiceIdx: number;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -63,6 +69,27 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     const next = [...customSongs, newSong];
     setCustomSongs(next);
     await setKV("customSongs", next);
+  }
+
+  async function finishImport(parsed: ParsedMidi, title: string) {
+    const newSong = songFromMidi(parsed, title);
+    await saveSong(newSong);
+    setLastImport({ parsed, title, songId: newSong.id, voiceIdx: 0 });
+  }
+
+  /** The melody-track picker is a heuristic; let the user cycle candidates. */
+  async function tryAnotherTrack() {
+    if (!lastImport) return;
+    const count = lastImport.parsed.voices.length;
+    const voiceIdx = (lastImport.voiceIdx + 1) % count;
+    const rebuilt: Song = {
+      ...songFromMidi(lastImport.parsed, lastImport.title, voiceIdx),
+      id: lastImport.songId,
+    };
+    const next = customSongs.map((s) => (s.id === lastImport.songId ? rebuilt : s));
+    setCustomSongs(next);
+    setKV("customSongs", next).catch(() => {});
+    setLastImport({ ...lastImport, voiceIdx });
   }
 
   // BitMidi allows direct browser access (CORS *); its bot protection blocks
@@ -117,7 +144,7 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
       const bytes = new Uint8Array(await r.arrayBuffer());
       const parsed = parseMidiFile(bytes);
       const title = m.name.replace(/\.midi?$/i, "");
-      await saveSong(songFromMidi({ ...parsed, name: title }, title));
+      await finishImport({ ...parsed, name: title }, title);
       setResults(null);
       setQuery("");
     } catch (e) {
@@ -133,7 +160,7 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const parsed = parseMidiFile(bytes);
-      await saveSong(songFromMidi(parsed, file.name.replace(/\.midi?$/i, "")));
+      await finishImport(parsed, file.name.replace(/\.midi?$/i, ""));
     } catch (e) {
       setImportError(
         `Couldn't import that file: ${e instanceof Error ? e.message : e}`,
@@ -145,6 +172,7 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     const next = customSongs.filter((s) => s.id !== id);
     setCustomSongs(next);
     setKV("customSongs", next).catch(() => {});
+    if (lastImport?.songId === id) setLastImport(null);
   }
 
   const range: Range | null = profile
@@ -250,6 +278,23 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
       </div>
 
       {importError && <div className="error">{importError}</div>}
+
+      {lastImport && (
+        <div className="banner">
+          <span>
+            Imported <strong>{lastImport.title}</strong> using track "
+            {lastImport.parsed.voices[lastImport.voiceIdx]?.label}". Practice a
+            phrase — if the melody is wrong, another track of the file may hold
+            it.
+          </span>
+          {lastImport.parsed.voices.length > 1 && (
+            <button className="secondary" onClick={tryAnotherTrack}>
+              Try another track ({lastImport.voiceIdx + 1}/
+              {lastImport.parsed.voices.length})
+            </button>
+          )}
+        </div>
+      )}
 
       {results !== null && (
         <div className="searchresults">
