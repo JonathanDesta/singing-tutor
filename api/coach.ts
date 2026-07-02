@@ -97,7 +97,7 @@ const PROGRAM_SCHEMA = {
     songSuggestions: {
       type: "array",
       description:
-        "3-5 real, findable songs the singer should import as MIDI files to work toward their goal — matched to their current level and range, ordered easiest first. 'why' explains what each song trains.",
+        "3-5 real, well-known songs the singer should import to work toward their goal — matched to their current level and range, ordered easiest first. 'why' explains what each song trains. The app has a built-in song search (Songs tab) that finds these online by name — pick songs likely to exist in a free MIDI library.",
       items: {
         type: "object",
         properties: {

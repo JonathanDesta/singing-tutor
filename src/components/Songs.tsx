@@ -18,6 +18,12 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
   const [phrase, setPhrase] = useState(0);
   const [customSongs, setCustomSongs] = useState<Song[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<
+    { name: string; downloadUrl: string; views: number }[] | null
+  >(null);
+  const [searching, setSearching] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,15 +34,58 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
     return () => window.removeEventListener("data-synced", load);
   }, []);
 
+  async function saveSong(newSong: Song) {
+    const next = [...customSongs, newSong];
+    setCustomSongs(next);
+    await setKV("customSongs", next);
+  }
+
+  async function searchSongs() {
+    const q = query.trim();
+    if (!q || searching) return;
+    setSearching(true);
+    setImportError(null);
+    setResults(null);
+    try {
+      const r = await fetch(`/api/midi?q=${encodeURIComponent(q)}`);
+      if (!r.ok) throw new Error(String(r.status));
+      const data = await r.json();
+      setResults(data.results ?? []);
+    } catch {
+      setImportError(
+        "Online search needs the app's backend — use the Vercel URL while online, or import a .mid file directly.",
+      );
+    }
+    setSearching(false);
+  }
+
+  async function importFromWeb(m: { name: string; downloadUrl: string }) {
+    if (importing) return;
+    setImporting(m.downloadUrl);
+    setImportError(null);
+    try {
+      const r = await fetch(`/api/midi?file=${encodeURIComponent(m.downloadUrl)}`);
+      if (!r.ok) throw new Error(String(r.status));
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      const parsed = parseMidiFile(bytes);
+      const title = m.name.replace(/\.midi?$/i, "");
+      await saveSong(songFromMidi({ ...parsed, name: title }, title));
+      setResults(null);
+      setQuery("");
+    } catch (e) {
+      setImportError(
+        `Couldn't import "${m.name}": ${e instanceof Error ? e.message : e}`,
+      );
+    }
+    setImporting(null);
+  }
+
   async function importMidi(file: File) {
     setImportError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const parsed = parseMidiFile(bytes);
-      const newSong = songFromMidi(parsed, file.name.replace(/\.midi?$/i, ""));
-      const next = [...customSongs, newSong];
-      setCustomSongs(next);
-      await setKV("customSongs", next);
+      await saveSong(songFromMidi(parsed, file.name.replace(/\.midi?$/i, "")));
     } catch (e) {
       setImportError(
         `Couldn't import that file: ${e instanceof Error ? e.message : e}`,
@@ -120,7 +169,47 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
         />
       </div>
 
+      <div className="searchrow">
+        <input
+          type="text"
+          value={query}
+          placeholder='Search songs online, e.g. "take on me"'
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") searchSongs();
+          }}
+        />
+        <button
+          className="secondary"
+          disabled={searching || query.trim() === ""}
+          onClick={searchSongs}
+        >
+          {searching ? "Searching…" : "Search"}
+        </button>
+      </div>
+
       {importError && <div className="error">{importError}</div>}
+
+      {results !== null && (
+        <div className="searchresults">
+          {results.length === 0 && (
+            <p className="muted">No results — try fewer or different words.</p>
+          )}
+          {results.map((m) => (
+            <div className="searchresult" key={m.downloadUrl}>
+              <span className="name">{m.name}</span>
+              <span className="muted">{m.views.toLocaleString()} views</span>
+              <button
+                className="primary"
+                disabled={importing !== null}
+                onClick={() => importFromWeb(m)}
+              >
+                {importing === m.downloadUrl ? "Importing…" : "Import"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="cards">
         {[...customSongs, ...SONGS].map((s) => (
