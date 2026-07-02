@@ -1,7 +1,24 @@
 import { midiToName } from "./notes";
 import type { Profile, SessionRec } from "./db";
+import type { Exercise, Segment } from "./exercises";
 
 export type Feasibility = "realistic" | "stretch" | "unrealistic";
+
+export type CoachDrillSegment = {
+  kind: "note" | "glide";
+  degree?: number;
+  from?: number;
+  to?: number;
+  ms: number;
+};
+
+export type CoachDrill = {
+  name: string;
+  description: string;
+  segments: CoachDrillSegment[];
+};
+
+export type SongSuggestion = { title: string; artist: string; why: string };
 
 export type CoachProgram = {
   feasibility: Feasibility;
@@ -9,9 +26,61 @@ export type CoachProgram = {
   programSummary: string;
   weeks: { week: number; focus: string; drills: string[] }[];
   advice: string;
+  customDrills?: CoachDrill[];
+  songSuggestions?: SongSuggestion[];
   generatedAt: string;
   source: "claude" | "offline";
 };
+
+/** 1-based week of the program the singer is currently in. */
+export function currentProgramWeek(p: CoachProgram): number {
+  const total = Math.max(1, p.weeks.length);
+  const elapsed =
+    Math.floor((Date.now() - new Date(p.generatedAt).getTime()) / (7 * 86400e3)) + 1;
+  return Math.min(total, Math.max(1, elapsed));
+}
+
+const clampInt = (x: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, Math.round(x)));
+
+/** Validates coach-composed drills into runnable Exercises (LLM output → sanitize). */
+export function drillsToExercises(p: CoachProgram | null): Exercise[] {
+  if (!p?.customDrills || !Array.isArray(p.customDrills)) return [];
+  const out: Exercise[] = [];
+  for (const d of p.customDrills.slice(0, 6)) {
+    if (!d || typeof d.name !== "string" || !Array.isArray(d.segments)) continue;
+    const segs: Segment[] = [];
+    for (const s of d.segments.slice(0, 24)) {
+      if (!s || !Number.isFinite(s.ms)) continue;
+      const ms = clampInt(s.ms, 300, 8000);
+      if (s.kind === "note" && Number.isFinite(s.degree)) {
+        segs.push({ kind: "note", degree: clampInt(s.degree!, 0, 24), ms });
+      } else if (s.kind === "glide" && Number.isFinite(s.from) && Number.isFinite(s.to)) {
+        segs.push({
+          kind: "glide",
+          from: clampInt(s.from!, 0, 24),
+          to: clampInt(s.to!, 0, 24),
+          ms,
+        });
+      }
+    }
+    if (segs.length === 0) continue;
+    const span = Math.max(
+      0,
+      ...segs.map((s) =>
+        s.kind === "note" ? s.degree : s.kind === "glide" ? Math.max(s.from, s.to) : 0,
+      ),
+    );
+    out.push({
+      id: `coach-${d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`,
+      name: d.name.slice(0, 60),
+      description: typeof d.description === "string" ? d.description.slice(0, 300) : "",
+      span,
+      segments: segs,
+    });
+  }
+  return out;
+}
 
 export type CoachFeedback = {
   text: string;
@@ -236,14 +305,28 @@ export function offlineFeedback(
 
 const COACH_ENDPOINT = "/api/coach";
 
+export type PlanExtras = {
+  previousProgram: CoachProgram | null;
+  currentWeek: number | null;
+  recentFeedback: string[];
+};
+
 export async function requestPlan(
   goalText: string,
   summary: SingerSummary,
+  extras?: PlanExtras,
 ): Promise<CoachProgram> {
   const res = await fetch(COACH_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "plan", goal: goalText, summary }),
+    body: JSON.stringify({
+      mode: "plan",
+      goal: goalText,
+      summary,
+      previousProgram: extras?.previousProgram ?? null,
+      currentWeek: extras?.currentWeek ?? null,
+      recentFeedback: extras?.recentFeedback ?? [],
+    }),
   });
   if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
   const data = await res.json();
@@ -259,6 +342,7 @@ export async function requestFeedback(
   program: CoachProgram | null,
   lastSession: SessionRec | null,
   summary: SingerSummary,
+  recentFeedback: string[] = [],
 ): Promise<CoachFeedback> {
   const res = await fetch(COACH_ENDPOINT, {
     method: "POST",
@@ -267,6 +351,9 @@ export async function requestFeedback(
       mode: "feedback",
       goal: goalText,
       program: program?.source === "claude" ? program : null,
+      currentWeek:
+        program && program.source === "claude" ? currentProgramWeek(program) : null,
+      recentFeedback,
       lastSession,
       summary,
     }),
@@ -274,4 +361,36 @@ export async function requestFeedback(
   if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
   const data = await res.json();
   return { text: data.text, date: new Date().toISOString(), source: "claude" };
+}
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+export async function requestChat(
+  ctx: {
+    goal: string | null;
+    program: CoachProgram | null;
+    summary: SingerSummary;
+    lastSession: SessionRec | null;
+  },
+  messages: ChatMessage[],
+): Promise<string> {
+  const res = await fetch(COACH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "chat",
+      goal: ctx.goal,
+      program: ctx.program?.source === "claude" ? ctx.program : null,
+      currentWeek:
+        ctx.program && ctx.program.source === "claude"
+          ? currentProgramWeek(ctx.program)
+          : null,
+      summary: ctx.summary,
+      lastSession: ctx.lastSession,
+      messages,
+    }),
+  });
+  if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
+  const data = await res.json();
+  return data.text as string;
 }

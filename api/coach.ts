@@ -65,6 +65,50 @@ const PROGRAM_SCHEMA = {
       type: "string",
       description: "Standing advice: practice habits, safety, when to re-assess.",
     },
+    customDrills: {
+      type: "array",
+      description:
+        "2-4 NEW scoreable drills you compose for this singer's specific weaknesses. The app plays them and scores the sing-back exactly like built-in exercises. Segment degrees are semitones above the drill's lowest note (0-24); ms is duration (300-8000). Use 'note' segments for pitches and 'glide' segments for sirens/slides. Name them memorably and say in the description what fault each targets.",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          segments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["note", "glide"] },
+                degree: { type: "integer" },
+                from: { type: "integer" },
+                to: { type: "integer" },
+                ms: { type: "integer" },
+              },
+              required: ["kind", "ms"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["name", "description", "segments"],
+        additionalProperties: false,
+      },
+    },
+    songSuggestions: {
+      type: "array",
+      description:
+        "3-5 real, findable songs the singer should import as MIDI files to work toward their goal — matched to their current level and range, ordered easiest first. 'why' explains what each song trains.",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          artist: { type: "string" },
+          why: { type: "string" },
+        },
+        required: ["title", "artist", "why"],
+        additionalProperties: false,
+      },
+    },
   },
   required: [
     "feasibility",
@@ -72,6 +116,8 @@ const PROGRAM_SCHEMA = {
     "programSummary",
     "weeks",
     "advice",
+    "customDrills",
+    "songSuggestions",
   ],
   additionalProperties: false,
 } as const;
@@ -110,7 +156,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const client = new Anthropic();
-  const { mode, goal, summary, lastSession, program } = req.body ?? {};
+  const {
+    mode,
+    goal,
+    summary,
+    lastSession,
+    program,
+    previousProgram,
+    currentWeek,
+    recentFeedback,
+    messages,
+  } = req.body ?? {};
+
+  const continuity =
+    (currentWeek ? `The singer is in week ${currentWeek} of their current program.\n\n` : "") +
+    (recentFeedback?.length
+      ? `Your recent coaching notes to this singer (oldest first):\n${JSON.stringify(recentFeedback)}\n\n`
+      : "");
 
   try {
     if (mode === "plan") {
@@ -128,14 +190,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             content:
               `The singer's goal, in their own words:\n"${goal}"\n\n` +
               `Measured data from the app:\n${JSON.stringify(summary, null, 2)}\n\n` +
+              continuity +
+              (previousProgram
+                ? `Their current program (being revised):\n${JSON.stringify(previousProgram)}\n\n` +
+                  `Treat this as a REVISION: keep what the data says is working, change what isn't, and note what changed and why in programSummary.\n\n`
+                : "") +
               `Assess feasibility honestly per your principles, then design the program. ` +
-              `Choose the program length (number of weeks) that genuinely fits the goal.`,
+              `Choose the program length (number of weeks) that genuinely fits the goal. ` +
+              `Compose customDrills that target this singer's specific measured weaknesses, ` +
+              `and suggest real songs to import that build toward the goal.`,
           },
         ],
       });
       const text = response.content.find((b) => b.type === "text");
       if (!text || text.type !== "text") throw new Error("empty response");
       res.status(200).json(JSON.parse(text.text));
+      return;
+    }
+
+    if (mode === "chat") {
+      const history = (Array.isArray(messages) ? messages : [])
+        .slice(-20)
+        .filter(
+          (m: { role?: string; content?: unknown }) =>
+            (m.role === "user" || m.role === "assistant") &&
+            typeof m.content === "string" &&
+            m.content.length > 0 &&
+            m.content.length < 4000,
+        );
+      if (history.length === 0 || history[history.length - 1].role !== "user") {
+        res.status(400).json({ error: "chat requires messages ending with a user turn" });
+        return;
+      }
+      const context =
+        `CONTEXT FROM THE APP (not written by the singer):\n` +
+        `Goal: ${goal ?? "(none set)"}\n` +
+        `Current program: ${program ? JSON.stringify(program) : "(none)"}\n` +
+        (currentWeek ? `Program week: ${currentWeek}\n` : "") +
+        `History summary: ${JSON.stringify(summary)}\n` +
+        `Most recent session: ${lastSession ? JSON.stringify(lastSession) : "(none)"}`;
+      const response = await client.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 16000,
+        thinking: { type: "adaptive" },
+        system:
+          SYSTEM +
+          `\n\nYou are now in a live chat with your student. Answer their actual question — concise, concrete, honest, referencing their real data when relevant. If they ask for program changes and you agree, describe the change and tell them to press "Rebuild my program" so it takes effect; you'll then revise rather than start over. Never bluff about things the app can't measure.`,
+        messages: [
+          { role: "user", content: context },
+          {
+            role: "assistant",
+            content:
+              "Got it — I have your goal, program, and practice data in front of me. What's on your mind?",
+          },
+          ...history,
+        ],
+      });
+      const text = response.content.find((b) => b.type === "text");
+      if (!text || text.type !== "text") throw new Error("empty response");
+      res.status(200).json({ text: text.text });
       return;
     }
 
@@ -153,6 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             content:
               `Goal: ${goal ?? "(none set)"}\n\n` +
               `Current program: ${program ? JSON.stringify(program) : "(none)"}\n\n` +
+              continuity +
               `Most recent session (per-segment results, avgCents is signed error):\n` +
               `${JSON.stringify(lastSession, null, 2)}\n\n` +
               `Overall history summary:\n${JSON.stringify(summary, null, 2)}`,

@@ -96,6 +96,92 @@ td.chips {
   color: #e7e9ee;
 }
 
+.chatpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #12141a;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.chatpanel h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.chatlog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.msg {
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 85%;
+  padding: 8px 12px;
+}
+
+.msg p {
+  margin: 0 0 6px;
+}
+
+.msg p:last-child {
+  margin-bottom: 0;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: #26304a;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: #1c2029;
+}
+
+.chatrow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.chatrow textarea {
+  flex: 1;
+  background: #171a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 10px;
+  color: #e7e9ee;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.suggestions {
+  margin: 0;
+  padding-left: 18px;
+  color: #b8bfcf;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.programbox h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.sect {
+  color: #8b93a7;
+  font-size: 14px;
+  margin: 10px 0 0;
+}
+
 .chip {
   display: inline-block;
   background: #1c2029;

@@ -1,8 +1,9 @@
-import { useState, type MutableRefObject } from "react";
+import { useEffect, useState, type MutableRefObject } from "react";
 import type { AudioEngine, SourceKind } from "../audio/engine";
 import { EXERCISES, pickRoot, type Exercise, type Range } from "../lib/exercises";
+import { drillsToExercises, type CoachProgram } from "../lib/coach";
 import { midiToName } from "../lib/notes";
-import type { Profile } from "../lib/db";
+import { getKV, type Profile } from "../lib/db";
 import { ExerciseRunner } from "./ExerciseRunner";
 import { RangeSetup } from "./RangeSetup";
 
@@ -23,6 +24,17 @@ export function Practice({
 }: Props) {
   const [mode, setMode] = useState<"list" | "range">("list");
   const [current, setCurrent] = useState<Exercise | null>(null);
+  const [coachDrills, setCoachDrills] = useState<Exercise[]>([]);
+
+  useEffect(() => {
+    const load = () =>
+      getKV<CoachProgram>("program")
+        .then((p) => setCoachDrills(drillsToExercises(p ?? null)))
+        .catch(() => {});
+    load();
+    window.addEventListener("data-synced", load);
+    return () => window.removeEventListener("data-synced", load);
+  }, []);
 
   const range: Range | null = profile
     ? { min: profile.rangeMin, max: profile.rangeMax }
@@ -98,6 +110,27 @@ export function Practice({
           </div>
         ))}
       </div>
+
+      {coachDrills.length > 0 && (
+        <>
+          <h2 className="sect">From your coach</h2>
+          <div className="cards">
+            {coachDrills.map((ex) => (
+              <div className="card" key={ex.id}>
+                <h3>{ex.name}</h3>
+                <p>{ex.description}</p>
+                <div className="meta">
+                  starts at {midiToName(pickRoot(ex, range))}
+                  {ex.span > 0 && ` · spans ${ex.span} semitones`}
+                </div>
+                <button className="primary" onClick={() => setCurrent(ex)}>
+                  Start
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </>
   );
 }
