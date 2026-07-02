@@ -418,6 +418,51 @@ export async function requestSongStyle(song: Song): Promise<SongStyle> {
   };
 }
 
+export type ClipStyle = {
+  overall: string;
+  target: PhraseStyleTarget;
+  generatedAt: string;
+};
+
+/**
+ * Style target for a ~30s preview clip of a real recording. Reuses the
+ * existing "style" backend mode with one pseudo-phrase describing the clip,
+ * so the deployed coach function works unchanged.
+ */
+export async function requestClipStyle(
+  trackName: string,
+  artistName: string,
+): Promise<ClipStyle> {
+  const res = await fetch(COACH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "style",
+      songTitle: trackName,
+      attribution: artistName,
+      phrases: [
+        {
+          lyric:
+            "the ~30-second official store preview excerpt (typically the hook/chorus) — give ONE overall production target for singing along with this artist's recorded vocal",
+          noteCount: 0,
+          low: 0,
+          high: 0,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
+  const data = (await res.json()) as {
+    overall: string;
+    phrases: PhraseStyleTarget[];
+  };
+  return {
+    overall: data.overall ?? "",
+    target: data.phrases?.[0] ?? { weight: "mixed", color: "any", notes: "" },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function requestChat(

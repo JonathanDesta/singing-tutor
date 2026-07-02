@@ -14,8 +14,9 @@ import { Practice } from "./components/Practice";
 import { Progress } from "./components/Progress";
 import { Coach } from "./components/Coach";
 import { Songs } from "./components/Songs";
+import { SingAlong } from "./components/SingAlong";
 
-type View = "practice" | "songs" | "coach" | "free" | "progress";
+type View = "practice" | "songs" | "singalong" | "coach" | "free" | "progress";
 
 export default function App() {
   const engineRef = useRef<AudioEngine | null>(null);
@@ -71,7 +72,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Singing Tutor</h1>
-        <span className="phase">Phase 5 · songs &amp; PWA</span>
+        <span className="phase">Phase 7 · sing-along</span>
         <div className="account">
           {sync.status === "disabled" ? (
             <span className="muted sync-off" title="Firebase not configured yet">
@@ -110,6 +111,12 @@ export default function App() {
             onClick={() => setView("songs")}
           >
             Songs
+          </button>
+          <button
+            className={view === "singalong" ? "on" : ""}
+            onClick={() => setView("singalong")}
+          >
+            Sing along
           </button>
           <button
             className={view === "coach" ? "on" : ""}
@@ -185,6 +192,14 @@ export default function App() {
       )}
       {view === "songs" && (
         <Songs
+          engineRef={engineRef}
+          source={source}
+          toneMidi={toneMidi}
+          profile={profile}
+        />
+      )}
+      {view === "singalong" && (
+        <SingAlong
           engineRef={engineRef}
           source={source}
           toneMidi={toneMidi}

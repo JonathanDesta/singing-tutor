@@ -37,6 +37,9 @@ export class AudioEngine {
   private lfoGain: GainNode | null = null;
   private toneVibrato = false;
   private tap: AudioWorkletNode | null = null;
+  private clipBuffer: AudioBuffer | null = null;
+  private clipSrc: AudioBufferSourceNode | null = null;
+  private clipStartedAt = 0;
   private ring = new Float32Array(CAPTURE_SIZE);
   private scratch = new Float32Array(CAPTURE_SIZE);
   private received = 0;
@@ -155,7 +158,62 @@ export class AudioEngine {
     this.lfoGain = null;
   }
 
+  /**
+   * Decodes a clip (e.g. an iTunes preview) for playback through this
+   * engine's context. Requires a started engine — sing-along flows start the
+   * mic first, then load. Returns the clip duration in seconds. The engine
+   * keeps only the decoded buffer; callers keep the raw bytes for reloads
+   * after stop() (decode detaches the ArrayBuffer, so pass a copy).
+   */
+  async loadClip(data: ArrayBuffer): Promise<number> {
+    if (!this.ctx) throw new Error("engine not started");
+    this.clipBuffer = await this.ctx.decodeAudioData(data);
+    return this.clipBuffer.duration;
+  }
+
+  /** Plays the loaded clip audibly (mic capture continues in parallel). */
+  playClip(onEnded?: () => void): void {
+    if (!this.ctx || !this.clipBuffer) throw new Error("no clip loaded");
+    this.stopClip();
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.clipBuffer;
+    src.connect(this.ctx.destination);
+    src.onended = () => {
+      if (this.clipSrc === src) this.clipSrc = null;
+      onEnded?.();
+    };
+    this.clipStartedAt = this.ctx.currentTime;
+    src.start();
+    this.clipSrc = src;
+  }
+
+  stopClip(): void {
+    if (this.clipSrc) {
+      const src = this.clipSrc;
+      this.clipSrc = null;
+      src.onended = null;
+      try {
+        src.stop();
+      } catch {
+        // already stopped
+      }
+      src.disconnect();
+    }
+  }
+
+  /** Seconds into the playing clip, or null when nothing is playing. */
+  clipPosition(): number | null {
+    if (!this.ctx || !this.clipSrc) return null;
+    return this.ctx.currentTime - this.clipStartedAt;
+  }
+
+  get clipDuration(): number | null {
+    return this.clipBuffer?.duration ?? null;
+  }
+
   async stop(): Promise<void> {
+    this.stopClip();
+    this.clipBuffer = null;
     this.detachLfo();
     this.osc?.stop();
     this.osc = null;

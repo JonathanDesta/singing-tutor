@@ -687,3 +687,79 @@ button:disabled {
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* ---- Sing along (real-recording previews) ---- */
+
+.artwork {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.trackhead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.trackhead .artwork {
+  width: 56px;
+  height: 56px;
+}
+
+.trackhead h3,
+.trackhead p {
+  margin: 0;
+}
+
+.trackpick {
+  align-items: center;
+}
+
+.singalong {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.progressbar {
+  height: 6px;
+  background: #1c2029;
+  border: 1px solid #2a2f3d;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressbar > div {
+  height: 100%;
+  background: #4ade80;
+  transition: width 0.15s linear;
+}
+
+.clipsummary {
+  background: #12141a;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.clipsummary h3 {
+  margin: 0;
+}
+
+.clipsummary .chip {
+  font-size: 13px;
+  padding: 4px 12px;
+}
+
+.clipsummary .chip-good,
+.clipsummary .chip-bad {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}

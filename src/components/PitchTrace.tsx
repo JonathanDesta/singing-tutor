@@ -10,9 +10,15 @@ const SEMITONE_SPAN = 13; // vertical range above/below target
 type Props = {
   pointsRef: MutableRefObject<TracePoint[]>;
   targetMidi: number;
+  /**
+   * Without a known melody (sing-along to a real recording), there is no
+   * target line: targetMidi only centers the view, and segments are colored
+   * by distance to the nearest semitone instead.
+   */
+  freeMode?: boolean;
 };
 
-export function PitchTrace({ pointsRef, targetMidi }: Props) {
+export function PitchTrace({ pointsRef, targetMidi, freeMode = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -41,16 +47,18 @@ export function PitchTrace({ pointsRef, targetMidi }: Props) {
       const hi = targetMidi + SEMITONE_SPAN;
       const yOf = (m: number) => h - ((m - lo) / (hi - lo)) * h;
 
-      // in-tune band: ±25 cents around the target
-      const bandTop = yOf(targetMidi + 0.25);
-      const bandBot = yOf(targetMidi - 0.25);
-      ctx.fillStyle = "rgba(74, 222, 128, 0.12)";
-      ctx.fillRect(0, bandTop, w, bandBot - bandTop);
+      if (!freeMode) {
+        // in-tune band: ±25 cents around the target
+        const bandTop = yOf(targetMidi + 0.25);
+        const bandBot = yOf(targetMidi - 0.25);
+        ctx.fillStyle = "rgba(74, 222, 128, 0.12)";
+        ctx.fillRect(0, bandTop, w, bandBot - bandTop);
+      }
 
       ctx.font = "11px system-ui, sans-serif";
       for (let m = Math.ceil(lo); m <= Math.floor(hi); m++) {
         const y = yOf(m);
-        const isTarget = m === targetMidi;
+        const isTarget = !freeMode && m === targetMidi;
         ctx.strokeStyle = isTarget ? "#4ade80" : "rgba(255,255,255,0.06)";
         ctx.lineWidth = isTarget ? 1.5 : 1;
         ctx.beginPath();
@@ -78,7 +86,9 @@ export function PitchTrace({ pointsRef, targetMidi }: Props) {
           prev.midi !== null &&
           p.t - prev.t < GAP_MS
         ) {
-          const cents = Math.abs(p.midi - targetMidi) * 100;
+          const cents = freeMode
+            ? Math.abs(p.midi - Math.round(p.midi)) * 100
+            : Math.abs(p.midi - targetMidi) * 100;
           ctx.strokeStyle =
             cents <= 25 ? "#4ade80" : cents <= 60 ? "#facc15" : "#fb7185";
           ctx.beginPath();
@@ -92,7 +102,7 @@ export function PitchTrace({ pointsRef, targetMidi }: Props) {
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [targetMidi, pointsRef]);
+  }, [targetMidi, pointsRef, freeMode]);
 
   return <canvas ref={canvasRef} className="trace" />;
 }
