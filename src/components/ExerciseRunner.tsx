@@ -86,6 +86,7 @@ export function ExerciseRunner({
       clarity: f.clarity,
       f1: f.f1,
       f2: f.f2,
+      timbre: f.timbre,
     });
   });
 

@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "verify:pitch": "node scripts/verify-pitch.mjs",
-    "verify:analysis": "esbuild src/lib/analysis.ts src/lib/formants.ts src/lib/scoring.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-analysis.mjs"
+    "verify:analysis": "esbuild src/lib/analysis.ts src/lib/formants.ts src/lib/scoring.ts src/lib/timbre.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-analysis.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.1",

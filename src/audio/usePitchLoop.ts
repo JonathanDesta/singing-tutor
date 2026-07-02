@@ -2,6 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 import { PitchDetector } from "pitchy";
 import { freqToMidi } from "../lib/notes";
 import { estimateFormants } from "../lib/formants";
+import { timbreFeatures, type TimbreFrame } from "../lib/timbre";
 import { CAPTURE_SIZE, type AudioEngine } from "./engine";
 
 const MIN_CLARITY = 0.9;
@@ -16,6 +17,7 @@ export type PitchFrame = {
   clarity: number;
   f1: number | null; // first formant (voiced frames only)
   f2: number | null; // second formant
+  timbre: TimbreFrame | null; // spectral timbre features (voiced frames only)
 };
 
 /**
@@ -47,7 +49,16 @@ export function usePitchLoop(
         const [freq, clarity] = detector.findPitch(buf, sampleRate);
         if (clarity >= MIN_CLARITY && freq >= MIN_FREQ && freq <= MAX_FREQ) {
           const { f1, f2 } = estimateFormants(buf, sampleRate);
-          cbRef.current({ now, freq, midi: freqToMidi(freq), clarity, f1, f2 });
+          const timbre = timbreFeatures(buf, sampleRate, freq);
+          cbRef.current({
+            now,
+            freq,
+            midi: freqToMidi(freq),
+            clarity,
+            f1,
+            f2,
+            timbre,
+          });
           return;
         }
       }
@@ -58,6 +69,7 @@ export function usePitchLoop(
         clarity: 0,
         f1: null,
         f2: null,
+        timbre: null,
       });
     });
   }, [active, engineRef]);

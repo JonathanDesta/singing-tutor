@@ -7,6 +7,7 @@ import {
   applyVibratoAllowance,
   overallScore,
 } from "./.bundle/scoring.js";
+import { timbreFeatures, classifyTimbre } from "./.bundle/timbre.js";
 
 let failures = 0;
 
@@ -22,7 +23,7 @@ const DT = 21.3; // ms per frame, matching the worklet notify cadence
 function genFrames(durMs, midiAt, clarity = 0.99) {
   const frames = [];
   for (let t = 0; t <= durMs; t += DT) {
-    frames.push({ t, midi: midiAt(t), clarity, f1: null, f2: null });
+    frames.push({ t, midi: midiAt(t), clarity, f1: null, f2: null, timbre: null });
   }
   return frames;
 }
@@ -178,6 +179,61 @@ function synthVowel(F1, bw1, F2, bw2, f0 = 140, sampleRate = 48000, n = 2048) {
     "'ee' classified",
     okRange && classifyVowel(f1, f2) === "ee",
     `vowel=${okRange ? classifyVowel(f1, f2) : "n/a"}`,
+  );
+}
+
+// ---- timbre ------------------------------------------------------------------
+
+// harmonic stack with amplitude ∝ 1/h^rolloff up to capHz
+function synthVoice(f0, rolloff, capHz, sampleRate = 48000, n = 2048) {
+  const buf = new Float32Array(n);
+  for (let h = 1; h * f0 <= capHz; h++) {
+    const amp = 1 / Math.pow(h, rolloff);
+    for (let i = 0; i < n; i++) {
+      buf[i] += amp * Math.sin((2 * Math.PI * h * f0 * i) / sampleRate);
+    }
+  }
+  return buf;
+}
+
+function timbreOf(f0, rolloff, capHz) {
+  const frames = [];
+  for (let k = 0; k < 10; k++) {
+    frames.push(timbreFeatures(synthVoice(f0, rolloff, capHz), 48000, f0));
+  }
+  return classifyTimbre(frames.filter((f) => f !== null));
+}
+
+{
+  const t = timbreOf(220, 0.8, 3000); // rich harmonics, capped highs
+  check(
+    "dark full voice (Grenade-like)",
+    t?.weight === "full" && t?.color === "dark",
+    `weight=${t?.weight} color=${t?.color} centroid=${t?.centroidHz} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
+  );
+}
+{
+  const t = timbreOf(220, 0.5, 5000); // rich harmonics all the way up
+  check(
+    "bright full voice (Uptown-Funk-like)",
+    t?.weight === "full" && t?.color === "bright",
+    `weight=${t?.weight} color=${t?.color} centroid=${t?.centroidHz} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
+  );
+}
+{
+  const t = timbreOf(220, 1.5, 4000); // moderate rolloff — lean production
+  check(
+    "light voice (Billie-Jean-like)",
+    t?.weight === "light",
+    `weight=${t?.weight} color=${t?.color} centroid=${t?.centroidHz} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
+  );
+}
+{
+  const t = timbreOf(330, 2.5, 2500); // fundamental-dominant, steep rolloff
+  check(
+    "falsetto detected",
+    t?.weight === "falsetto",
+    `weight=${t?.weight} color=${t?.color} centroid=${t?.centroidHz} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
   );
 }
 

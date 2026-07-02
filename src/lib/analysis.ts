@@ -1,5 +1,6 @@
 import type { TimedTarget } from "./exercises";
 import { classifyVowel } from "./formants";
+import { classifyTimbre, type TimbreClass, type TimbreFrame } from "./timbre";
 
 /** Analysis frame: what usePitchLoop emits, timestamped relative to sing start. */
 export type AFrame = {
@@ -8,6 +9,7 @@ export type AFrame = {
   clarity: number;
   f1: number | null;
   f2: number | null;
+  timbre: TimbreFrame | null;
 };
 
 export type SegmentAnalysis = {
@@ -35,6 +37,8 @@ export type SegmentAnalysis = {
   } | null;
   /** experimental LPC-based vowel estimate */
   vowel: { guess: string; f1: number; f2: number } | null;
+  /** spectral production style: weight (full/light/falsetto) × color (dark/neutral/bright) */
+  timbre: TimbreClass | null;
 };
 
 const EDGE_MS = 100;
@@ -70,6 +74,11 @@ function analyzeSegment(tg: TimedTarget, frames: AFrame[]): SegmentAnalysis {
     tone: analyzeTone(voiced),
     onset: isNote ? analyzeOnset(tg, frames) : null,
     vowel: analyzeVowel(voiced),
+    timbre: classifyTimbre(
+      voiced
+        .map((f) => f.timbre)
+        .filter((t): t is TimbreFrame => t != null),
+    ),
   };
 }
 
@@ -188,6 +197,7 @@ export function describeAnalysis(a: SegmentAnalysis | null | undefined): string[
     }
   }
   if (a.tone && a.tone.label !== "clear") chips.push(a.tone.label);
+  if (a.timbre) chips.push(`${a.timbre.weight}·${a.timbre.color}`);
   if (a.vowel) chips.push(`"${a.vowel.guess}"?`);
   return chips;
 }
