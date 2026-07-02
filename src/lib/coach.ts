@@ -1,6 +1,8 @@
 import { midiToName } from "./notes";
 import type { Profile, SessionRec } from "./db";
 import type { Exercise, Segment } from "./exercises";
+import type { Song } from "./songs";
+import type { TimbreClass } from "./timbre";
 
 export type Feasibility = "realistic" | "stretch" | "unrealistic";
 
@@ -361,6 +363,59 @@ export async function requestFeedback(
   if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
   const data = await res.json();
   return { text: data.text, date: new Date().toISOString(), source: "claude" };
+}
+
+// ---------------------------------------------------------------------------
+// Song style targets — the coach annotates a song with per-phrase production
+// targets from its knowledge of the song; results grade your measured timbre
+// against them.
+// ---------------------------------------------------------------------------
+
+export type PhraseStyleTarget = {
+  weight: "full" | "light" | "falsetto" | "mixed";
+  color: "dark" | "neutral" | "bright" | "any";
+  notes: string;
+};
+
+export type SongStyle = {
+  overall: string;
+  phrases: PhraseStyleTarget[];
+  generatedAt: string;
+};
+
+export function timbreMatches(t: TimbreClass, target: PhraseStyleTarget): boolean {
+  const weightOk = target.weight === "mixed" || t.weight === target.weight;
+  const colorOk = target.color === "any" || t.color === target.color;
+  return weightOk && colorOk;
+}
+
+export async function requestSongStyle(song: Song): Promise<SongStyle> {
+  const phrases = song.phrases.map((p) => ({
+    lyric: p.lyric,
+    noteCount: p.notes.length,
+    low: Math.min(...p.notes.map((n) => n.degree)),
+    high: Math.max(...p.notes.map((n) => n.degree)),
+  }));
+  const res = await fetch(COACH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "style",
+      songTitle: song.title,
+      attribution: song.attribution,
+      phrases,
+    }),
+  });
+  if (!res.ok) throw new Error(`coach endpoint: ${res.status}`);
+  const data = (await res.json()) as { overall: string; phrases: PhraseStyleTarget[] };
+  // normalize to exactly one target per phrase
+  const fallback: PhraseStyleTarget = { weight: "mixed", color: "any", notes: "" };
+  const targets = song.phrases.map((_, i) => data.phrases?.[i] ?? fallback);
+  return {
+    overall: data.overall ?? "",
+    phrases: targets,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };

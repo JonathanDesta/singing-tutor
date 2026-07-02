@@ -122,6 +122,37 @@ const PROGRAM_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const STYLE_SCHEMA = {
+  type: "object",
+  properties: {
+    overall: {
+      type: "string",
+      description:
+        "1-2 sentences: the song's overall vocal style AND how confident you are that you recognize this specific song. If you don't recognize it, say so plainly.",
+    },
+    phrases: {
+      type: "array",
+      description:
+        "One target per phrase, in order. weight/color map to the app's measured axes. Use 'mixed'/'any' when the phrase genuinely admits multiple valid productions or you're unsure.",
+      items: {
+        type: "object",
+        properties: {
+          weight: { type: "string", enum: ["full", "light", "falsetto", "mixed"] },
+          color: { type: "string", enum: ["dark", "neutral", "bright", "any"] },
+          notes: {
+            type: "string",
+            description: "Very short performance cue, e.g. 'belted, punchy' or 'breathy head voice, gentle'.",
+          },
+        },
+        required: ["weight", "color", "notes"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["overall", "phrases"],
+  additionalProperties: false,
+} as const;
+
 function corsOrigin(req: VercelRequest): string | null {
   const origin = req.headers.origin;
   if (!origin) return null; // same-origin / non-browser
@@ -199,6 +230,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `Choose the program length (number of weeks) that genuinely fits the goal. ` +
               `Compose customDrills that target this singer's specific measured weaknesses, ` +
               `and suggest real songs to import that build toward the goal.`,
+          },
+        ],
+      });
+      const text = response.content.find((b) => b.type === "text");
+      if (!text || text.type !== "text") throw new Error("empty response");
+      res.status(200).json(JSON.parse(text.text));
+      return;
+    }
+
+    if (mode === "style") {
+      const { songTitle, attribution, phrases } = req.body ?? {};
+      if (typeof songTitle !== "string" || !Array.isArray(phrases) || phrases.length === 0) {
+        res.status(400).json({ error: "style requires songTitle and phrases" });
+        return;
+      }
+      const response = await client.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 16000,
+        thinking: { type: "adaptive" },
+        system:
+          SYSTEM +
+          `\n\nYou are now annotating a song with per-phrase vocal PRODUCTION TARGETS. The app will measure the singer's actual production (weight: full/light/falsetto; color: dark/neutral/bright) on each phrase and grade it against your targets. Draw on your knowledge of how the original artist sings this specific song. Be honest in "overall" about whether you recognize the song — if not, derive sensible targets from the lyrics and pitch ranges rather than inventing a fake recollection. These are guides for a learner, not gatekeeping: prefer 'mixed'/'any' over false precision.`,
+        output_config: { format: { type: "json_schema", schema: STYLE_SCHEMA } },
+        messages: [
+          {
+            role: "user",
+            content:
+              `Song: "${songTitle}" (${attribution ?? "unknown source"}).\n` +
+              `Its ${phrases.length} phrases (lyric may be a placeholder like "Phrase 1" for imported MIDIs; pitch values are MIDI-ish note numbers):\n` +
+              `${JSON.stringify(phrases.slice(0, 40))}\n\n` +
+              `Produce exactly ${phrases.length} phrase targets, in order.`,
           },
         ],
       });

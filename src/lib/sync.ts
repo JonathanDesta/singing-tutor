@@ -54,6 +54,7 @@ const KV_KEYS = [
   "customSongs",
   "coach-chat",
   "coach-log",
+  "songStyles",
 ];
 
 const sessionKey = (s: SessionRec) => `${s.date}|${s.exerciseId}`;

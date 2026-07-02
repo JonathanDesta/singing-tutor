@@ -24,6 +24,7 @@ import {
 } from "../lib/scoring";
 import { addSession } from "../lib/db";
 import { midiToFreq, midiToName } from "../lib/notes";
+import { timbreMatches, type PhraseStyleTarget } from "../lib/coach";
 import { ExerciseStage } from "./ExerciseStage";
 
 type Phase = "ready" | "preview" | "countin" | "sing" | "results";
@@ -45,6 +46,8 @@ type Props = {
   toneMidi: number;
   onExit: () => void;
   backLabel?: string;
+  /** coach-set production target for this phrase (song mode) */
+  styleTarget?: PhraseStyleTarget | null;
 };
 
 export function ExerciseRunner({
@@ -55,6 +58,7 @@ export function ExerciseRunner({
   toneMidi,
   onExit,
   backLabel = "← Exercises",
+  styleTarget = null,
 }: Props) {
   const { targets, totalMs } = useMemo(
     () => resolve(exercise, rootMidi),
@@ -198,6 +202,13 @@ export function ExerciseRunner({
 
       {error && <div className="error">{error}</div>}
 
+      {styleTarget && (
+        <div className="styletarget">
+          Style target: <strong>{styleTarget.weight}·{styleTarget.color}</strong>
+          {styleTarget.notes && ` — ${styleTarget.notes}`}
+        </div>
+      )}
+
       <ExerciseStage
         targets={targets}
         totalMs={totalMs}
@@ -218,6 +229,27 @@ export function ExerciseRunner({
         segScores && (
           <div className="results">
             <div className="bigscore">{overallScore(segScores)}</div>
+            {styleTarget &&
+              analyses &&
+              (() => {
+                const judged = analyses
+                  .map((a) => a?.timbre ?? null)
+                  .filter((t): t is NonNullable<typeof t> => t !== null);
+                if (judged.length === 0) return null;
+                const matched = judged.filter((t) =>
+                  timbreMatches(t, styleTarget),
+                ).length;
+                const sung = [...new Set(judged.map((t) => `${t.weight}·${t.color}`))];
+                return (
+                  <div
+                    className={`stylematch ${matched === judged.length ? "good" : ""}`}
+                  >
+                    Style target {styleTarget.weight}·{styleTarget.color}: matched
+                    on {matched}/{judged.length} analyzed notes
+                    {matched < judged.length && ` (you sang ${sung.join(", ")})`}
+                  </div>
+                );
+              })()}
             <table className="stbl">
               <tbody>
                 {segScores.map((s, i) => (
@@ -240,6 +272,13 @@ export function ExerciseRunner({
                           {chip}
                         </span>
                       ))}
+                      {styleTarget &&
+                        analyses?.[i]?.timbre &&
+                        (timbreMatches(analyses[i].timbre!, styleTarget) ? (
+                          <span className="chip chip-good">✓ style</span>
+                        ) : (
+                          <span className="chip chip-bad">✗ style</span>
+                        ))}
                     </td>
                   </tr>
                 ))}

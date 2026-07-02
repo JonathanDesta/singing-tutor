@@ -163,6 +163,40 @@ td.chips {
   resize: vertical;
 }
 
+.styletarget {
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 10px;
+  color: #b8bfcf;
+  font-size: 14px;
+  padding: 8px 14px;
+}
+
+.styleoverall {
+  margin: 0;
+  font-size: 13px;
+}
+
+.stylematch {
+  color: #facc15;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stylematch.good {
+  color: #4ade80;
+}
+
+.chip-good {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+}
+
+.chip-bad {
+  border-color: rgba(251, 113, 133, 0.5);
+  color: #fb7185;
+}
+
 .searchrow {
   display: flex;
   gap: 10px;

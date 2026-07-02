@@ -4,6 +4,7 @@ import { pickRoot, type Range } from "../lib/exercises";
 import { SONGS, songPhraseExercise, type Song } from "../lib/songs";
 import { parseMidiFile, songFromMidi } from "../lib/midi";
 import { getKV, setKV, type Profile } from "../lib/db";
+import { requestSongStyle, type SongStyle } from "../lib/coach";
 import { ExerciseRunner } from "./ExerciseRunner";
 
 type Props = {
@@ -24,15 +25,39 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
   >(null);
   const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
+  const [styles, setStyles] = useState<Record<string, SongStyle>>({});
+  const [styleBusy, setStyleBusy] = useState(false);
+  const [styleError, setStyleError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const load = () =>
+    const load = () => {
       getKV<Song[]>("customSongs").then((s) => s && setCustomSongs(s));
+      getKV<Record<string, SongStyle>>("songStyles").then(
+        (s) => s && setStyles(s),
+      );
+    };
     load();
     window.addEventListener("data-synced", load);
     return () => window.removeEventListener("data-synced", load);
   }, []);
+
+  async function fetchStyle(s: Song) {
+    if (styleBusy) return;
+    setStyleBusy(true);
+    setStyleError(null);
+    try {
+      const style = await requestSongStyle(s);
+      const next = { ...styles, [s.id]: style };
+      setStyles(next);
+      setKV("songStyles", next).catch(() => {});
+    } catch {
+      setStyleError(
+        "Style analysis needs the AI coach backend — use the Vercel URL while online.",
+      );
+    }
+    setStyleBusy(false);
+  }
 
   async function saveSong(newSong: Song) {
     const next = [...customSongs, newSong];
@@ -128,6 +153,7 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
 
   if (song) {
     const ex = songPhraseExercise(song, phrase);
+    const style = styles[song.id];
     return (
       <div className="songmode">
         <div className="songnav">
@@ -148,7 +174,18 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
           >
             Next →
           </button>
+          {!style && (
+            <button
+              className="secondary"
+              disabled={styleBusy}
+              onClick={() => fetchStyle(song)}
+            >
+              {styleBusy ? "Analyzing song…" : "Get style targets (AI)"}
+            </button>
+          )}
         </div>
+        {styleError && <div className="error">{styleError}</div>}
+        {style && <p className="muted styleoverall">{style.overall}</p>}
         <div className="lyric">“{song.phrases[phrase].lyric}”</div>
         <ExerciseRunner
           key={ex.id}
@@ -162,6 +199,7 @@ export function Songs({ engineRef, source, toneMidi, profile }: Props) {
             setPhrase(0);
           }}
           backLabel="← Songs"
+          styleTarget={style?.phrases[phrase] ?? null}
         />
       </div>
     );
