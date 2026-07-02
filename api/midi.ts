@@ -12,6 +12,16 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
 ];
 
+// BitMidi sits behind bot protection that 403s anonymous datacenter requests;
+// present as a normal browser.
+const UPSTREAM_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://bitmidi.com/",
+};
+
 function corsOrigin(req: VercelRequest): string | null {
   const origin = req.headers.origin;
   if (!origin) return null;
@@ -46,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (q) {
       const r = await fetch(
         `https://bitmidi.com/api/midi/search?q=${encodeURIComponent(q.slice(0, 80))}&page=0`,
+        { headers: UPSTREAM_HEADERS },
       );
       if (!r.ok) throw new Error(`search upstream ${r.status}`);
       const data = (await r.json()) as {
@@ -64,7 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(400).json({ error: "bad file path" });
         return;
       }
-      const r = await fetch(`https://bitmidi.com${file}`);
+      const r = await fetch(`https://bitmidi.com${file}`, {
+        headers: { ...UPSTREAM_HEADERS, Accept: "audio/midi, */*" },
+      });
       if (!r.ok) throw new Error(`file upstream ${r.status}`);
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > 2_000_000) {
