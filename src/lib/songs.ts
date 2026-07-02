@@ -7,7 +7,7 @@ import type { Exercise } from "./exercises";
  * runner as exercises, transposed to the singer's range.
  */
 
-export type SongNote = { degree: number; beats: number; syllable: string };
+export type SongNote = { degree: number; beats: number; syllable?: string };
 export type SongPhrase = { lyric: string; notes: SongNote[] };
 export type Song = {
   id: string;

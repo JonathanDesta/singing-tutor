@@ -46,7 +46,15 @@ export function subscribeSync(fn: (s: SyncState) => void): () => void {
 }
 
 /** Singleton KV keys that mirror to the user's Firestore doc. */
-const KV_KEYS = ["profile", "goal", "program", "last-feedback"];
+const KV_KEYS = [
+  "profile",
+  "goal",
+  "program",
+  "last-feedback",
+  "customSongs",
+  "coach-chat",
+  "coach-log",
+];
 
 const sessionKey = (s: SessionRec) => `${s.date}|${s.exerciseId}`;
 

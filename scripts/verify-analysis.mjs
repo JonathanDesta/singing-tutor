@@ -8,6 +8,7 @@ import {
   overallScore,
 } from "./.bundle/scoring.js";
 import { timbreFeatures, classifyTimbre } from "./.bundle/timbre.js";
+import { parseMidiFile, songFromMidi } from "./.bundle/midi.js";
 
 let failures = 0;
 
@@ -243,6 +244,57 @@ function timbreOf(f0, rolloff, capHz) {
   for (let i = 0; i < 2048; i++) buf[i] = Math.sin((2 * Math.PI * 220 * i) / 48000);
   const { f1 } = estimateFormants(buf, 48000);
   check("pure sine yields no F1", f1 === null || f1 < 260, `f1=${f1}`);
+}
+
+// ---- MIDI import -------------------------------------------------------------
+
+{
+  // hand-assembled SMF: 96 tpq, 120bpm, track "Test", ten quarter notes
+  // C4..A4 with a 2-beat rest after the fifth note
+  const bytes = [
+    0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 1, 0, 96, // MThd
+  ];
+  const track = [
+    0, 0xff, 0x51, 3, 0x07, 0xa1, 0x20, // tempo 500000us = 120bpm
+    0, 0xff, 0x03, 4, 0x54, 0x65, 0x73, 0x74, // name "Test"
+  ];
+  for (let i = 0; i < 10; i++) {
+    const pitch = 60 + i;
+    if (i === 5) track.push(0x81, 0x40); // 2-beat rest (192 ticks as VLQ)
+    else track.push(0);
+    track.push(0x90, pitch, 100); // note on
+    track.push(0x60, 0x80, pitch, 0); // 96 ticks later, note off
+  }
+  track.push(0, 0xff, 0x2f, 0); // end of track
+  const mtrk = [
+    0x4d, 0x54, 0x72, 0x6b,
+    (track.length >>> 24) & 0xff, (track.length >>> 16) & 0xff,
+    (track.length >>> 8) & 0xff, track.length & 0xff,
+    ...track,
+  ];
+  const file = new Uint8Array([...bytes, ...mtrk]);
+
+  const parsed = parseMidiFile(file);
+  check(
+    "MIDI parse: notes/bpm/name",
+    parsed.notes.length === 10 && parsed.bpm === 120 && parsed.name === "Test",
+    `notes=${parsed.notes.length} bpm=${parsed.bpm} name=${parsed.name}`,
+  );
+  const song = songFromMidi(parsed, "fallback");
+  check(
+    "MIDI song: split at rest into 2 phrases",
+    song.phrases.length === 2 &&
+      song.phrases[0].notes.length === 5 &&
+      song.phrases[1].notes.length === 5 &&
+      song.title === "Test",
+    `phrases=${song.phrases.length} p1=${song.phrases[0]?.notes.length} p2=${song.phrases[1]?.notes.length}`,
+  );
+  check(
+    "MIDI note timing preserved",
+    song.phrases[0].notes.every((n) => Math.abs(n.beats - 1) < 0.01) &&
+      song.phrases[1].notes[0].degree === 65,
+    `beats=${song.phrases[0].notes[0].beats} firstP2=${song.phrases[1].notes[0].degree}`,
+  );
 }
 
 console.log(failures === 0 ? "\nAll analysis checks passed." : `\n${failures} check(s) FAILED.`);
