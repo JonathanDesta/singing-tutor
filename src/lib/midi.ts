@@ -352,11 +352,18 @@ export function songFromMidi(
         sylls.length >= current.length * 0.4
           ? sylls.join(" ").replace(/\s+([,.!?;:'])/g, "$1").replace(/\s+/g, " ")
           : `Phrase ${phrases.length + 1}`,
-      notes: current.map((n) => ({
-        degree: n.midi,
-        beats: Math.min(6, Math.max(0.25, n.dur)),
-        syllable: n.syl,
-      })),
+      notes: current.map((n, i) => {
+        // rests between notes carry the rhythm — preserve them
+        const next = current[i + 1];
+        const gap = next ? Math.max(0, next.start - (n.start + n.dur)) : 0;
+        const note: SongPhrase["notes"][number] = {
+          degree: n.midi,
+          beats: Math.min(6, Math.max(0.25, n.dur)),
+        };
+        if (n.syl) note.syllable = n.syl; // no undefined keys (Firestore rejects them)
+        if (gap >= 0.05) note.gapBeats = Math.min(4, Math.round(gap * 100) / 100);
+        return note;
+      }),
     };
     // merge fragments into the previous phrase instead of emitting confetti
     if (current.length < 3 && phrases.length > 0) {

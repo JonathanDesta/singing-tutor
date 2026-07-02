@@ -29,8 +29,14 @@ export function timbreFeatures(
     return s;
   };
 
-  const lo = power(80, 1000);
-  const hi = power(2000, 5000);
+  // tilt bands are f0-RELATIVE: fixed-Hz bands pack more harmonics into the
+  // low band for low notes, biasing low singing toward "falsetto/light"
+  // regardless of actual production (harmonics 1-3 vs harmonics 4-12)
+  const loHz: [number, number] = [Math.max(60, f0 * 0.8), f0 * 3.5];
+  const hiHz: [number, number] = [f0 * 4, Math.min(5000, f0 * 12)];
+  if (hiHz[0] >= hiHz[1]) return null;
+  const lo = power(loHz[0], loHz[1]);
+  const hi = power(hiHz[0], hiHz[1]);
   const ring = power(2400, 3400);
   const total = power(80, 5000);
   if (total <= 1e-9 || lo <= 1e-9) return null;
@@ -43,12 +49,15 @@ export function timbreFeatures(
     cw += p;
   }
 
+  // search window must stay narrower than the harmonic spacing, or H1's
+  // window swallows H2 at low pitches
+  const halfWin = Math.max(1, Math.min(2, Math.floor(f0 / binHz / 3)));
   const peakNear = (hz: number) => {
     const c = bin(hz);
     let m = 0;
-    for (let i = Math.max(0, c - 2); i <= Math.min(mags.length - 1, c + 2); i++) {
-      m = Math.max(m, mags[i]);
-    }
+    const a = Math.max(0, c - halfWin);
+    const b = Math.min(mags.length - 1, c + halfWin);
+    for (let i = a; i <= b; i++) m = Math.max(m, mags[i]);
     return m;
   };
   const h1 = peakNear(f0);
@@ -73,8 +82,14 @@ export type TimbreClass = {
 
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
+/** Below ~E3 true falsetto is physiologically implausible for any voice. */
+const FALSETTO_FLOOR_MIDI = 52;
+
 /** Classifies a segment from its per-frame features (medians for robustness). */
-export function classifyTimbre(frames: TimbreFrame[]): TimbreClass | null {
+export function classifyTimbre(
+  frames: TimbreFrame[],
+  medianMidi?: number,
+): TimbreClass | null {
   if (frames.length < 8) return null;
   const med = (get: (t: TimbreFrame) => number) => {
     const s = frames.map(get).sort((a, b) => a - b);
@@ -87,12 +102,22 @@ export function classifyTimbre(frames: TimbreFrame[]): TimbreClass | null {
 
   // falsetto: dominant fundamental AND steep rolloff; light: one of the two
   // leaning that way; full: rich harmonics with real high-frequency energy
-  const weight: TimbreClass["weight"] =
+  // h1h2 cutoff at 7 (not 5): FFT bin quantization adds ~±1dB at low f0
+  let weight: TimbreClass["weight"] =
     h1h2Db >= 10 && tiltDb <= -18
       ? "falsetto"
-      : h1h2Db >= 5 || tiltDb <= -14
+      : h1h2Db >= 7 || tiltDb <= -14
         ? "light"
         : "full";
+  // physiological sanity: nobody has falsetto below ~E3 — a flutey spectrum
+  // down there is soft/underpowered modal voice, not falsetto
+  if (
+    weight === "falsetto" &&
+    medianMidi !== undefined &&
+    medianMidi < FALSETTO_FLOOR_MIDI
+  ) {
+    weight = "light";
+  }
   // boundaries calibrated against synthetic harmonic stacks (power-weighted
   // centroid of a capped rich voice ≈ 580 Hz, of a full-spectrum rich voice
   // ≈ 1300 Hz) — see scripts/verify-analysis.mjs

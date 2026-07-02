@@ -78,6 +78,7 @@ function analyzeSegment(tg: TimedTarget, frames: AFrame[]): SegmentAnalysis {
       voiced
         .map((f) => f.timbre)
         .filter((t): t is TimbreFrame => t != null),
+      voiced.length > 0 ? median(voiced.map((f) => f.midi!)) : undefined,
     ),
   };
 }

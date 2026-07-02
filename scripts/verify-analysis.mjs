@@ -202,7 +202,8 @@ function timbreOf(f0, rolloff, capHz) {
   for (let k = 0; k < 10; k++) {
     frames.push(timbreFeatures(synthVoice(f0, rolloff, capHz), 48000, f0));
   }
-  return classifyTimbre(frames.filter((f) => f !== null));
+  const midi = 69 + 12 * Math.log2(f0 / 440);
+  return classifyTimbre(frames.filter((f) => f !== null), midi);
 }
 
 {
@@ -235,6 +236,26 @@ function timbreOf(f0, rolloff, capHz) {
     "falsetto detected",
     t?.weight === "falsetto",
     `weight=${t?.weight} color=${t?.color} centroid=${t?.centroidHz} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
+  );
+}
+{
+  // regression: user sang B2 modal and got labeled falsetto. A rich low
+  // voice must read "full" — the f0-relative tilt bands fix this.
+  const t = timbreOf(123.47, 0.8, 3000); // B2, rich harmonics
+  check(
+    "modal B2 is full, not falsetto",
+    t?.weight === "full",
+    `weight=${t?.weight} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
+  );
+}
+{
+  // even a genuinely flutey spectrum at B2 must not be called falsetto —
+  // physiologically impossible down there (soft modal, not falsetto)
+  const t = timbreOf(123.47, 2.5, 2500);
+  check(
+    "falsetto floor below E3",
+    t !== null && t.weight !== "falsetto",
+    `weight=${t?.weight} tilt=${t?.tiltDb} h1h2=${t?.h1h2Db}`,
   );
 }
 
@@ -297,6 +318,34 @@ function timbreOf(f0, rolloff, capHz) {
     song.phrases[0].notes.every((n) => Math.abs(n.beats - 1) < 0.01) &&
       song.phrases[1].notes[0].degree === 65,
     `beats=${song.phrases[0].notes[0].beats} firstP2=${song.phrases[1].notes[0].degree}`,
+  );
+}
+
+// rhythm: rests between notes must be preserved as gapBeats (syncopation!)
+{
+  // quarter notes each followed by a half-beat rest (note 96 ticks, gap 48)
+  const track = [0, 0xff, 0x51, 3, 0x07, 0xa1, 0x20];
+  for (let i = 0; i < 8; i++) {
+    track.push(i === 0 ? 0 : 0x30); // 48-tick gap before each note after the first
+    track.push(0x90, 60 + i, 100);
+    track.push(0x60, 0x80, 60 + i, 0); // 96-tick duration
+  }
+  track.push(0, 0xff, 0x2f, 0);
+  const file = new Uint8Array([
+    0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 1, 0, 96,
+    0x4d, 0x54, 0x72, 0x6b,
+    (track.length >>> 24) & 0xff, (track.length >>> 16) & 0xff,
+    (track.length >>> 8) & 0xff, track.length & 0xff,
+    ...track,
+  ]);
+  const song = songFromMidi(parseMidiFile(file), "gaps");
+  const notes = song.phrases[0].notes;
+  check(
+    "MIDI rests preserved as gapBeats",
+    notes.length === 8 &&
+      notes.slice(0, 7).every((n) => Math.abs((n.gapBeats ?? 0) - 0.5) < 0.02) &&
+      notes[7].gapBeats === undefined,
+    `gaps=${notes.map((n) => n.gapBeats ?? 0).join(",")}`,
   );
 }
 

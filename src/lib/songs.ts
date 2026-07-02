@@ -7,7 +7,13 @@ import type { Exercise } from "./exercises";
  * runner as exercises, transposed to the singer's range.
  */
 
-export type SongNote = { degree: number; beats: number; syllable?: string };
+export type SongNote = {
+  degree: number;
+  beats: number;
+  syllable?: string;
+  /** silence after this note before the next (rests carry the rhythm!) */
+  gapBeats?: number;
+};
 export type SongPhrase = { lyric: string; notes: SongNote[] };
 export type Song = {
   id: string;
@@ -170,16 +176,25 @@ export function songPhraseExercise(song: Song, phraseIdx: number): Exercise {
   const degrees = phrase.notes.map((n) => n.degree);
   const minDeg = Math.min(...degrees);
   const span = Math.max(...degrees) - minDeg;
+  const msPerBeat = 60000 / song.bpm;
   return {
     id: `song-${song.id}-p${phraseIdx + 1}`,
     name: `${song.title} · phrase ${phraseIdx + 1}`,
     description: phrase.lyric,
     span,
-    segments: phrase.notes.map((n) => ({
-      kind: "note" as const,
-      degree: n.degree - minDeg,
-      ms: Math.round((n.beats * 60000) / song.bpm),
-      label: n.syllable,
-    })),
+    segments: phrase.notes.flatMap((n) => {
+      const segs: Exercise["segments"] = [
+        {
+          kind: "note" as const,
+          degree: n.degree - minDeg,
+          ms: Math.round(n.beats * msPerBeat),
+          label: n.syllable,
+        },
+      ];
+      if (n.gapBeats && n.gapBeats > 0) {
+        segs.push({ kind: "rest" as const, ms: Math.round(n.gapBeats * msPerBeat) });
+      }
+      return segs;
+    }),
   };
 }
