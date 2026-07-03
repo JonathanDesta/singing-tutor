@@ -83,12 +83,12 @@ export function loadSeparator(
 ): Promise<ort.InferenceSession> {
   if (!sessionPromise) {
     sessionPromise = (async () => {
-      // prod: static runtime copied to public/ort/ by scripts/copy-ort.mjs.
-      // dev: vite refuses dynamic imports from public/, so use the CDN
-      // (version-pinned to the installed package).
-      ort.env.wasm.wasmPaths = import.meta.env.DEV
-        ? "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/"
-        : `${import.meta.env.BASE_URL}ort/`;
+      // runtime wasm from jsDelivr (version-pinned to the installed package):
+      // self-hosting 40MB of wasm broke GitHub Pages deployments outright,
+      // vite dev refuses dynamic imports from public/, and the 67MB model
+      // is a CDN fetch (Hugging Face) anyway — nothing heavy in the bundle.
+      ort.env.wasm.wasmPaths =
+        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
       const bytes = await fetchModelCached(onProgress);
       const providers: ("webgpu" | "wasm")[] =
         "gpu" in navigator ? ["webgpu", "wasm"] : ["wasm"];

@@ -11,8 +11,6 @@
     "verify:analysis": "esbuild src/lib/analysis.ts src/lib/formants.ts src/lib/scoring.ts src/lib/timbre.ts src/lib/midi.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-analysis.mjs",
     "verify:align": "esbuild src/lib/chroma.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-align.mjs",
     "verify:stft": "esbuild src/lib/stft.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-stft.mjs",
-    "predev": "node scripts/copy-ort.mjs",
-    "prebuild": "node scripts/copy-ort.mjs",
     "postbuild": "node scripts/prune-dist.mjs"
   },
   "dependencies": {
