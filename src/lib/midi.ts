@@ -9,7 +9,7 @@ import type { Song, SongPhrase } from "./songs";
  * Lyric meta events (karaoke files) become real syllables and phrase breaks.
  */
 
-type RawNote = { midi: number; start: number; dur: number }; // beats
+export type RawNote = { midi: number; start: number; dur: number }; // beats
 
 export type MidiVoice = {
   label: string;
@@ -328,6 +328,19 @@ function withLyrics(
     }
   }
   return out;
+}
+
+/**
+ * One voice's raw notes with lyric syllables attached, on the absolute beat
+ * timeline (sing-along alignment needs real song time, not phrase chunks).
+ */
+export function melodyWithLyrics(
+  parsed: ParsedMidi,
+  voiceIdx = 0,
+): (RawNote & { syl?: string })[] {
+  const voice = parsed.voices[voiceIdx];
+  if (!voice) throw new Error("No such track");
+  return withLyrics(voice.notes, parsed.lyrics);
 }
 
 /** Builds a practicable Song from one extracted voice. */
