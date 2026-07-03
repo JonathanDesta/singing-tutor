@@ -107,9 +107,10 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
   const [octaveShift, setOctaveShift] = useState(0);
   const [lyricIdx, setLyricIdx] = useState(-1);
 
-  // aligned melodies cached per track (kv); attachment UI is currently
-  // removed pending a recording-based melody source
+  // melodies extracted from the recording itself, cached per track (kv)
   const [melodies, setMelodies] = useState<Record<string, ClipMelody>>({});
+  const [extracting, setExtracting] = useState<string | null>(null);
+  const [melodyError, setMelodyError] = useState<string | null>(null);
 
   const pointsRef = useRef<TracePoint[]>([]);
   const framesRef = useRef<AFrame[]>([]);
@@ -156,7 +157,8 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
         t1: t.t1,
         midi0: t.midi + octaveShift,
         midi1: t.midi + octaveShift,
-        label: t.syl ?? midiToName(t.midi + octaveShift),
+        // extracted pitches carry the record's tuning (fractional midi)
+        label: t.syl ?? midiToName(Math.round(t.midi + octaveShift)),
       })),
     [melody, octaveShift],
   );
@@ -280,8 +282,70 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
     setSummary(null);
     setMelodyResults(null);
     setError(null);
+    setMelodyError(null);
     setOctaveShift(0);
     ensureStyle(t);
+  }
+
+  /** Separate the vocal from the recording and turn it into note targets. */
+  async function analyzeMelody() {
+    if (!track || extracting) return;
+    setMelodyError(null);
+    try {
+      setExtracting("Fetching the recording…");
+      if (!audioDataRef.current) {
+        audioDataRef.current = await fetchPreviewAudio(track.previewUrl);
+      }
+      // heavyweight (ONNX runtime) — loaded only when actually used
+      const { extractMelody } = await import("../lib/melodyExtract");
+      const { notes, tuningCents, voicedSec, clipSec } = await extractMelody(
+        audioDataRef.current.slice(0),
+        (p) => {
+          if (p.stage === "download")
+            setExtracting(
+              `Downloading the voice model (one-time, ~67 MB)… ${Math.round(p.fraction * 100)}%`,
+            );
+          else if (p.stage === "separate")
+            setExtracting(
+              `Isolating the vocal… ${Math.round(p.fraction * 100)}%`,
+            );
+          else if (p.stage === "track") setExtracting("Reading the melody…");
+          else setExtracting("Decoding…");
+        },
+      );
+      if (notes.length < 6 || voicedSec < 3) {
+        setMelodyError(
+          "Couldn't hear a clear vocal line in this clip — it may be mostly instrumental.",
+        );
+        setExtracting(null);
+        return;
+      }
+      const clipMs = Math.round(clipSec * 1000);
+      const targets: MelodyTarget[] = notes.map((n) => ({
+        t0: Math.max(0, Math.round(n.t0 * 1000)),
+        t1: Math.min(clipMs, Math.round(n.t1 * 1000)),
+        midi: n.midi,
+      }));
+      const rec: ClipMelody = {
+        midiName: "AI analysis of this recording",
+        voiceLabel: `tuning ${tuningCents >= 0 ? "+" : ""}${tuningCents}¢`,
+        voiceIdx: 0,
+        offsetSec: 0,
+        scale: 1,
+        syncScore: 1,
+        targets,
+      };
+      setMelodies((prev) => {
+        const next = { ...prev, [String(track.trackId)]: rec };
+        setKV("clipMelodies", next).catch(() => {});
+        return next;
+      });
+    } catch (e) {
+      setMelodyError(
+        `Melody analysis failed: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+    setExtracting(null);
   }
 
   function removeMelody() {
@@ -350,7 +414,7 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
         t1: t.t1,
         midi0: t.midi + shift,
         midi1: t.midi + shift,
-        label: t.syl ?? midiToName(t.midi + shift),
+        label: t.syl ?? midiToName(Math.round(t.midi + shift)),
       }));
       const frames = framesRef.current;
       const analyses = analyzeSegments(targets, frames);
@@ -476,7 +540,7 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
                     {melodyResults.scores.map((s, i) => (
                       <tr key={i}>
                         <td>{s.label}</td>
-                        <td>{midiToName(melodyResults.targets[i].midi0)}</td>
+                        <td>{midiToName(Math.round(melodyResults.targets[i].midi0))}</td>
                         <td>{Math.round(s.score * 100)}%</td>
                         <td>
                           {s.avgCents === null
@@ -622,23 +686,37 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
         </div>
       )}
 
-      {/* MIDI melody attachment UI removed (user verdict: transcription
-          catalog + accuracy don't meet the quality bar). The karaoke stage,
-          alignment engine, and scoring stay — the melody source will be
-          vocal extraction from the recording itself. Stored melodies from
-          the kv cache continue to work. */}
-      {track && melody && (
+      {track && (
         <div className="melodybox">
-          <div className="banner">
-            <span>
-              ♪ Melody attached: <strong>{melody.midiName}</strong> —{" "}
-              {melody.targets.length} notes. You&apos;ll get note-by-note
-              scoring.
-            </span>
-            <button className="secondary" onClick={removeMelody}>
-              Remove
-            </button>
-          </div>
+          {melody ? (
+            <div className="banner">
+              <span>
+                ♪ Melody ready: <strong>{melody.midiName}</strong> (
+                {melody.voiceLabel}) — {melody.targets.length} notes from the
+                actual vocal. You&apos;ll get note-by-note scoring.
+              </span>
+              <button className="secondary" onClick={removeMelody}>
+                Remove
+              </button>
+            </div>
+          ) : extracting ? (
+            <div className="banner">
+              <span>{extracting}</span>
+            </div>
+          ) : (
+            <div className="banner">
+              <span>
+                Optional: analyze the recording to isolate the vocal and score
+                you note-by-note against what the artist actually sings. First
+                use downloads a ~67 MB voice model (kept for next time);
+                analysis takes a minute or two per song and is then saved.
+              </span>
+              <button className="secondary" onClick={analyzeMelody}>
+                Analyze melody (AI)
+              </button>
+            </div>
+          )}
+          {melodyError && <div className="error">{melodyError}</div>}
         </div>
       )}
 

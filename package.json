@@ -9,11 +9,15 @@
     "preview": "vite preview",
     "verify:pitch": "node scripts/verify-pitch.mjs",
     "verify:analysis": "esbuild src/lib/analysis.ts src/lib/formants.ts src/lib/scoring.ts src/lib/timbre.ts src/lib/midi.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-analysis.mjs",
-    "verify:align": "esbuild src/lib/chroma.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-align.mjs"
+    "verify:align": "esbuild src/lib/chroma.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-align.mjs",
+    "verify:stft": "esbuild src/lib/stft.ts --bundle --format=esm --outdir=scripts/.bundle && node scripts/verify-stft.mjs",
+    "predev": "node scripts/copy-ort.mjs",
+    "prebuild": "node scripts/copy-ort.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.1",
     "firebase": "^12.15.0",
+    "onnxruntime-web": "^1.27.0",
     "pitchy": "^4.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -11,6 +11,11 @@ export default defineConfig(({ command }) => ({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      workbox: {
+        // onnxruntime's 27MB wasm loads on demand for melody analysis —
+        // precaching it would bloat every visitor's first load
+        globIgnores: ["**/*.wasm", "**/ort.*.js", "**/assets/ort*"],
+      },
       manifest: {
         name: "Singing Tutor",
         short_name: "SingTutor",
