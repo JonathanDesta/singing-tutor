@@ -15,15 +15,6 @@ import { searchITunes, fetchPreviewAudio, type ITunesTrack } from "../lib/itunes
 import { classifyTimbre, type TimbreClass, type TimbreFrame } from "../lib/timbre";
 import { requestClipStyle, timbreMatches, type ClipStyle } from "../lib/coach";
 import { getKV, setKV, addSession, type Profile } from "../lib/db";
-import { parseMidiFile, melodyWithLyrics, type ParsedMidi } from "../lib/midi";
-import {
-  audioChroma,
-  midiChroma,
-  alignChroma,
-  MIN_SYNC_SCORE,
-  CHROMA_SAMPLE_RATE,
-  type NoteSec,
-} from "../lib/chroma";
 import type { TimedTarget } from "../lib/exercises";
 import {
   scoreSegments,
@@ -116,16 +107,9 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
   const [octaveShift, setOctaveShift] = useState(0);
   const [lyricIdx, setLyricIdx] = useState(-1);
 
-  // melody attachment
+  // aligned melodies cached per track (kv); attachment UI is currently
+  // removed pending a recording-based melody source
   const [melodies, setMelodies] = useState<Record<string, ClipMelody>>({});
-  const [midiPanel, setMidiPanel] = useState(false);
-  const [midiQuery, setMidiQuery] = useState("");
-  const [midiResults, setMidiResults] = useState<
-    { name: string; downloadUrl: string }[] | null
-  >(null);
-  const [midiSearching, setMidiSearching] = useState(false);
-  const [melodyBusy, setMelodyBusy] = useState<string | null>(null);
-  const [melodyError, setMelodyError] = useState<string | null>(null);
 
   const pointsRef = useRef<TracePoint[]>([]);
   const framesRef = useRef<AFrame[]>([]);
@@ -137,7 +121,6 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
     total: number;
   }>({ midis: [], timbres: [], diffs: [], voiced: 0, total: 0 });
   const audioDataRef = useRef<ArrayBuffer | null>(null);
-  const parsedMidiRef = useRef<{ parsed: ParsedMidi; align: { offsetSec: number; scale: number; score: number }; clipSec: number } | null>(null);
   const lastUiRef = useRef(0);
   const lastRecenterRef = useRef(0);
 
@@ -294,175 +277,11 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
   function pickTrack(t: ITunesTrack) {
     setTrack(t);
     audioDataRef.current = null;
-    parsedMidiRef.current = null;
     setSummary(null);
     setMelodyResults(null);
     setError(null);
-    setMelodyError(null);
-    setMidiPanel(false);
-    setMidiResults(null);
-    setMidiQuery(`${t.trackName} ${t.artistName}`);
     setOctaveShift(0);
     ensureStyle(t);
-  }
-
-  // ---------- melody attachment (MIDI search → chroma alignment) ----------
-
-  async function searchMidi() {
-    const q = midiQuery.trim();
-    if (!q || midiSearching) return;
-    setMidiSearching(true);
-    setMelodyError(null);
-    setMidiResults(null);
-    try {
-      let found: { name: string; downloadUrl: string }[];
-      try {
-        const r = await fetch(
-          `https://bitmidi.com/api/midi/search?q=${encodeURIComponent(q)}&page=0`,
-        );
-        if (!r.ok) throw new Error(String(r.status));
-        const data = await r.json();
-        found = (data?.result?.results ?? [])
-          .filter((m: { name?: string; downloadUrl?: string }) => m.name && m.downloadUrl)
-          .slice(0, 8)
-          .map((m: { name: string; downloadUrl: string }) => ({
-            name: m.name,
-            downloadUrl: m.downloadUrl,
-          }));
-      } catch {
-        const r = await fetch(`/api/midi?q=${encodeURIComponent(q)}`);
-        if (!r.ok) throw new Error(String(r.status));
-        found = ((await r.json()).results ?? []).map(
-          (m: { name: string; downloadUrl: string }) => ({
-            name: m.name,
-            downloadUrl: m.downloadUrl,
-          }),
-        );
-      }
-      setMidiResults(found);
-      if (found.length === 0)
-        setMelodyError("No MIDI found — try fewer or different words.");
-    } catch {
-      setMelodyError("MIDI search needs an internet connection.");
-    }
-    setMidiSearching(false);
-  }
-
-  /** Full pipeline: fetch clip + MIDI, decode, chroma-align, build targets. */
-  async function attachMelody(m: { name: string; downloadUrl: string }) {
-    if (!track || melodyBusy) return;
-    setMelodyError(null);
-    try {
-      setMelodyBusy("Fetching the recording…");
-      if (!audioDataRef.current) {
-        audioDataRef.current = await fetchPreviewAudio(track.previewUrl);
-      }
-      setMelodyBusy("Decoding…");
-      const octx = new OfflineAudioContext({
-        numberOfChannels: 1,
-        length: 1,
-        sampleRate: CHROMA_SAMPLE_RATE,
-      });
-      const decoded = await octx.decodeAudioData(audioDataRef.current.slice(0));
-      const mono = new Float32Array(decoded.length);
-      for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
-        const d = decoded.getChannelData(ch);
-        for (let i = 0; i < d.length; i++) mono[i] += d[i] / decoded.numberOfChannels;
-      }
-
-      setMelodyBusy("Fetching MIDI…");
-      let r = await fetch(`https://bitmidi.com${m.downloadUrl}`).catch(() => null);
-      if (!r || !r.ok) {
-        r = await fetch(`/api/midi?file=${encodeURIComponent(m.downloadUrl)}`);
-      }
-      if (!r.ok) throw new Error(`MIDI fetch: ${r.status}`);
-      const parsed = parseMidiFile(new Uint8Array(await r.arrayBuffer()));
-
-      setMelodyBusy("Aligning to the recording…");
-      const secPerBeat = 60 / parsed.bpm;
-      const allNotes: NoteSec[] = parsed.voices.flatMap((v) =>
-        v.notes.map((n) => ({
-          midi: n.midi,
-          start: n.start * secPerBeat,
-          dur: n.dur * secPerBeat,
-        })),
-      );
-      const songSec = Math.max(...allNotes.map((n) => n.start + n.dur)) + 1;
-      const align = alignChroma(
-        audioChroma(mono, CHROMA_SAMPLE_RATE),
-        midiChroma(allNotes, songSec, 2048 / CHROMA_SAMPLE_RATE),
-      );
-      if (align.score < MIN_SYNC_SCORE) {
-        setMelodyError(
-          `Couldn't line "${m.name}" up with this recording (match ${align.score.toFixed(2)}). It's probably a different arrangement — try another file.`,
-        );
-        setMelodyBusy(null);
-        return;
-      }
-      parsedMidiRef.current = { parsed, align, clipSec: decoded.duration };
-      saveMelody(m.name, 0);
-      setMidiPanel(false);
-      setMidiResults(null);
-    } catch (e) {
-      setMelodyError(
-        `Couldn't attach melody: ${e instanceof Error ? e.message : e}`,
-      );
-    }
-    setMelodyBusy(null);
-  }
-
-  /** Builds clip-time targets from the chosen voice and stores the melody. */
-  function saveMelody(midiName: string, voiceIdx: number) {
-    const ctx = parsedMidiRef.current;
-    if (!track || !ctx) return;
-    const { parsed, align, clipSec } = ctx;
-    const secPerBeat = 60 / parsed.bpm;
-    const notes = melodyWithLyrics(parsed, voiceIdx);
-    const targets: MelodyTarget[] = [];
-    for (const n of notes) {
-      const t0 = ((n.start * secPerBeat - align.offsetSec) / align.scale) * 1000;
-      const t1 =
-        (((n.start + n.dur) * secPerBeat - align.offsetSec) / align.scale) * 1000;
-      if (t1 < 150 || t0 > clipSec * 1000 - 150) continue;
-      if (t1 - t0 < 100) continue;
-      const tg: MelodyTarget = {
-        t0: Math.max(0, Math.round(t0)),
-        t1: Math.min(Math.round(clipSec * 1000), Math.round(t1)),
-        midi: n.midi,
-      };
-      if (n.syl) tg.syl = n.syl; // no undefined keys (Firestore rejects them)
-      targets.push(tg);
-    }
-    if (targets.length < 4) {
-      setMelodyError(
-        "This track has almost no melody inside the preview window — try another track of the file.",
-      );
-      return;
-    }
-    const rec: ClipMelody = {
-      midiName,
-      voiceLabel: parsed.voices[voiceIdx]?.label ?? `Track ${voiceIdx + 1}`,
-      voiceIdx,
-      offsetSec: align.offsetSec,
-      scale: align.scale,
-      syncScore: align.score,
-      targets,
-    };
-    setMelodies((prev) => {
-      const next = { ...prev, [String(track.trackId)]: rec };
-      setKV("clipMelodies", next).catch(() => {});
-      return next;
-    });
-    setMelodyError(null);
-  }
-
-  function tryAnotherVoice() {
-    const ctx = parsedMidiRef.current;
-    if (!melody || !ctx) return;
-    saveMelody(
-      melody.midiName,
-      (melody.voiceIdx + 1) % ctx.parsed.voices.length,
-    );
   }
 
   function removeMelody() {
@@ -803,77 +622,23 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
         </div>
       )}
 
-      {track && (
+      {/* MIDI melody attachment UI removed (user verdict: transcription
+          catalog + accuracy don't meet the quality bar). The karaoke stage,
+          alignment engine, and scoring stay — the melody source will be
+          vocal extraction from the recording itself. Stored melodies from
+          the kv cache continue to work. */}
+      {track && melody && (
         <div className="melodybox">
-          {melody ? (
-            <div className="banner">
-              <span>
-                ♪ Melody &amp; lyrics ready: <strong>{melody.midiName}</strong>{" "}
-                ({melody.voiceLabel}, match{" "}
-                {(melody.syncScore * 100).toFixed(0)}%) —{" "}
-                {melody.targets.length} notes in the clip. You&apos;ll get
-                note-by-note scoring.
-              </span>
-              {parsedMidiRef.current &&
-                parsedMidiRef.current.parsed.voices.length > 1 && (
-                  <button className="secondary" onClick={tryAnotherVoice}>
-                    Try another track ({melody.voiceIdx + 1}/
-                    {parsedMidiRef.current.parsed.voices.length})
-                  </button>
-                )}
-              <button className="secondary" onClick={removeMelody}>
-                Remove
-              </button>
-            </div>
-          ) : !midiPanel ? (
-            <div className="banner">
-              <span>
-                Optional: attach a MIDI melody to get note-by-note scoring with
-                lyrics, synced to the recording automatically.
-              </span>
-              <button className="secondary" onClick={() => setMidiPanel(true)}>
-                Find melody &amp; lyrics
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="searchrow">
-                <input
-                  type="text"
-                  value={midiQuery}
-                  onChange={(e) => setMidiQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") searchMidi();
-                  }}
-                />
-                <button
-                  className="secondary"
-                  disabled={midiSearching || midiQuery.trim() === ""}
-                  onClick={searchMidi}
-                >
-                  {midiSearching ? "Searching…" : "Search MIDI"}
-                </button>
-              </div>
-              {melodyBusy && <p className="muted">{melodyBusy}</p>}
-              {midiResults !== null && !melodyBusy && (
-                <div className="searchresults">
-                  {midiResults.map((m) => (
-                    <div className="searchresult" key={m.downloadUrl}>
-                      <span className="name">{m.name}</span>
-                      <button
-                        className="primary"
-                        disabled={melodyBusy !== null}
-                        onClick={() => attachMelody(m)}
-                      >
-                        Sync it
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-          {melodyError && <div className="error">{melodyError}</div>}
+          <div className="banner">
+            <span>
+              ♪ Melody attached: <strong>{melody.midiName}</strong> —{" "}
+              {melody.targets.length} notes. You&apos;ll get note-by-note
+              scoring.
+            </span>
+            <button className="secondary" onClick={removeMelody}>
+              Remove
+            </button>
+          </div>
         </div>
       )}
 
