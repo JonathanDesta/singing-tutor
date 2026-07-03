@@ -10,7 +10,9 @@ const dst = path.join(root, "public", "ort");
 fs.mkdirSync(dst, { recursive: true });
 let n = 0;
 for (const f of fs.readdirSync(src)) {
-  if (/^ort-wasm-simd-threaded.*\.(wasm|mjs)$/.test(f)) {
+  // only the two runtimes actually used: plain (wasm EP) + jsep (webgpu EP);
+  // asyncify/jspi variants are ~40MB of dead weight that broke Pages deploys
+  if (/^ort-wasm-simd-threaded(\.jsep)?\.(wasm|mjs)$/.test(f)) {
     fs.copyFileSync(path.join(src, f), path.join(dst, f));
     n++;
   }

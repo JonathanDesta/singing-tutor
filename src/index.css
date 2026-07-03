@@ -786,3 +786,9 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
 }
+
+.extractbusy {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}

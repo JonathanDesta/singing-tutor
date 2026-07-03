@@ -110,6 +110,7 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
   // melodies extracted from the recording itself, cached per track (kv)
   const [melodies, setMelodies] = useState<Record<string, ClipMelody>>({});
   const [extracting, setExtracting] = useState<string | null>(null);
+  const [extractPct, setExtractPct] = useState<number | null>(null);
   const [melodyError, setMelodyError] = useState<string | null>(null);
 
   const pointsRef = useRef<TracePoint[]>([]);
@@ -130,9 +131,20 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
       getKV<Record<string, ClipStyle>>("clipStyles").then(
         (s) => s && setStyles(s),
       );
-      getKV<Record<string, ClipMelody>>("clipMelodies").then(
-        (m) => m && setMelodies(m),
-      );
+      getKV<Record<string, ClipMelody>>("clipMelodies").then((m) => {
+        if (!m) return;
+        // migration: drop melodies from the retired MIDI source — their
+        // notes never matched the recordings and kept resurfacing
+        const cleaned = Object.fromEntries(
+          Object.entries(m).filter(
+            ([, v]) => v.midiName === "AI analysis of this recording",
+          ),
+        );
+        if (Object.keys(cleaned).length !== Object.keys(m).length) {
+          setKV("clipMelodies", cleaned).catch(() => {});
+        }
+        setMelodies(cleaned);
+      });
     };
     load();
     window.addEventListener("data-synced", load);
@@ -291,8 +303,14 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
   async function analyzeMelody() {
     if (!track || extracting) return;
     setMelodyError(null);
+    // breadcrumb so a failure report says exactly how far we got
+    let lastStage = "starting";
+    const stage = (s: string) => {
+      lastStage = s;
+      setExtracting(s);
+    };
     try {
-      setExtracting("Fetching the recording…");
+      stage("Fetching the recording…");
       if (!audioDataRef.current) {
         audioDataRef.current = await fetchPreviewAudio(track.previewUrl);
       }
@@ -301,16 +319,19 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
       const { notes, tuningCents, voicedSec, clipSec } = await extractMelody(
         audioDataRef.current.slice(0),
         (p) => {
-          if (p.stage === "download")
-            setExtracting(
-              `Downloading the voice model (one-time, ~67 MB)… ${Math.round(p.fraction * 100)}%`,
-            );
-          else if (p.stage === "separate")
-            setExtracting(
-              `Isolating the vocal… ${Math.round(p.fraction * 100)}%`,
-            );
-          else if (p.stage === "track") setExtracting("Reading the melody…");
-          else setExtracting("Decoding…");
+          if (p.stage === "download") {
+            stage("Downloading the voice model (one-time, ~67 MB)…");
+            setExtractPct(p.fraction);
+          } else if (p.stage === "separate") {
+            stage("Isolating the vocal from the recording…");
+            setExtractPct(p.fraction);
+          } else if (p.stage === "track") {
+            stage("Reading the melody…");
+            setExtractPct(null);
+          } else {
+            stage("Decoding…");
+            setExtractPct(null);
+          }
         },
       );
       if (notes.length < 6 || voicedSec < 3) {
@@ -341,11 +362,18 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
         return next;
       });
     } catch (e) {
-      setMelodyError(
-        `Melody analysis failed: ${e instanceof Error ? e.message : e}`,
-      );
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/dynamically imported module|Importing a module script failed/i.test(msg)) {
+        // the app updated underneath this page — old chunk names are gone;
+        // a reload picks up the fresh build and Analyze works again
+        setMelodyError("The app was updated in the background — reloading…");
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        setMelodyError(`Melody analysis failed at "${lastStage}": ${msg}`);
+      }
     }
     setExtracting(null);
+    setExtractPct(null);
   }
 
   function removeMelody() {
@@ -497,7 +525,15 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
                 getProgressMs={getProgressMs}
               />
             ) : (
-              <PitchTrace pointsRef={pointsRef} targetMidi={center} freeMode />
+              <>
+                <p className="muted">
+                  No melody attached — the trace below shows <em>your</em>{" "}
+                  voice only (colored by nearest note), not the song. Use
+                  “Analyze melody” on the song screen for note-by-note
+                  scoring.
+                </p>
+                <PitchTrace pointsRef={pointsRef} targetMidi={center} freeMode />
+              </>
             )}
             <div className="readout">
               {reading && centsVsNearest !== null ? (
@@ -700,8 +736,16 @@ export function SingAlong({ engineRef, source, toneMidi, profile }: Props) {
               </button>
             </div>
           ) : extracting ? (
-            <div className="banner">
+            <div className="banner extractbusy">
               <span>{extracting}</span>
+              <div className="progressbar">
+                <div
+                  style={{
+                    width: extractPct !== null ? `${extractPct * 100}%` : "100%",
+                    opacity: extractPct !== null ? 1 : 0.4,
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <div className="banner">
