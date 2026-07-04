@@ -72,7 +72,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Singing Tutor</h1>
-        <span className="phase">Phase 8 · AI melody</span>
+        <span className="phase">Phase 8 · sing-along</span>
         <div className="account">
           {sync.status === "disabled" ? (
             <span className="muted sync-off" title="Firebase not configured yet">
